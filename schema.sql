@@ -111,8 +111,6 @@ CREATE TABLE GAME (
     CONSTRAINT uq_game_id_game UNIQUE (game_id),
     CONSTRAINT chk_game_abbreviation
         CHECK (abbreviation REGEXP '^[A-Za-z0-9_-]{2,30}$'),
-    CONSTRAINT chk_game_not_own_base
-        CHECK (base_game_id IS NULL OR base_game_id <> game_id),
     CONSTRAINT chk_game_time_type_2_distinct
         CHECK (run_time_type_2 IS NULL OR run_time_type_2 <> run_time_type_1),
     CONSTRAINT chk_game_time_type_3_distinct
@@ -247,10 +245,6 @@ CREATE TABLE RUN (
 
     -- Stage D: status is determined by examiner_id/reject_reason
     -- and is exposed through RUN_WITH_STATUS below.
-    CONSTRAINT chk_run_decision_date
-        CHECK ((examiner_id IS NULL) = (decided_on IS NULL)),
-    CONSTRAINT chk_run_reject_reason
-        CHECK (reject_reason IS NULL OR examiner_id IS NOT NULL),
     CONSTRAINT chk_run_decision_time
         CHECK (decided_on IS NULL OR decided_on >= submitted_at)
 ) ENGINE=InnoDB;
@@ -294,13 +288,7 @@ CREATE TABLE NEWS_POST (
         ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_news_game
         FOREIGN KEY (game_id) REFERENCES GAME(game_id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT chk_news_approval_fields
-        CHECK (
-            (status = 'approved' AND approver_id IS NOT NULL AND approved_at IS NOT NULL)
-            OR
-            (status IN ('pending', 'rejected') AND approver_id IS NULL AND approved_at IS NULL)
-        )
+        ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE STREAM (
@@ -341,15 +329,7 @@ CREATE TABLE TICKET (
         FOREIGN KEY (run_id) REFERENCES RUN(run_id)
         ON DELETE SET NULL ON UPDATE CASCADE,
 
-    -- Phase 3: a run-report ticket obtains its game through RUN.
-    CONSTRAINT chk_ticket_game_or_run
-        CHECK (game_id IS NULL OR run_id IS NULL),
-    CONSTRAINT chk_ticket_run_type
-        CHECK (run_id IS NULL OR ticket_type = 'run report'),
-
     -- Stage D: ticket status is inferred from handler_id/closed_at.
-    CONSTRAINT chk_ticket_handler_closed
-        CHECK (closed_at IS NULL OR handler_id IS NOT NULL),
     CONSTRAINT chk_ticket_resolution_closed
         CHECK ((closed_at IS NULL) = (resolution IS NULL)),
     CONSTRAINT chk_ticket_closed_time
@@ -380,7 +360,7 @@ CREATE TABLE GAME_DEVELOPER (
 
 CREATE TABLE GAME_LINK (
     game_id         BIGINT UNSIGNED NOT NULL,
-    link            VARCHAR(2048) NOT NULL,
+    link            VARCHAR(500) NOT NULL,
     PRIMARY KEY (game_id, link),
     CONSTRAINT fk_game_link_game
         FOREIGN KEY (game_id) REFERENCES GAME(game_id)
@@ -391,7 +371,7 @@ CREATE TABLE GAME_LINK (
 
 CREATE TABLE USER_SOCIAL_LINK (
     user_id         BIGINT UNSIGNED NOT NULL,
-    link            VARCHAR(2048) NOT NULL,
+    link            VARCHAR(500) NOT NULL,
     PRIMARY KEY (user_id, link),
     CONSTRAINT fk_user_social_link_user
         FOREIGN KEY (user_id) REFERENCES `USER`(user_id)
@@ -402,7 +382,7 @@ CREATE TABLE USER_SOCIAL_LINK (
 
 CREATE TABLE RUN_VIDEO_LINK (
     run_id          BIGINT UNSIGNED NOT NULL,
-    link            VARCHAR(2048) NOT NULL,
+    link            VARCHAR(500) NOT NULL,
     PRIMARY KEY (run_id, link),
     CONSTRAINT fk_run_video_link_run
         FOREIGN KEY (run_id) REFERENCES RUN(run_id)
@@ -498,8 +478,7 @@ CREATE TABLE FOLLOWS (
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT fk_follows_followed
         FOREIGN KEY (followed_id) REFERENCES `USER`(user_id)
-        ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT chk_no_self_follow CHECK (follower_id <> followed_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE FOLLOWS_GAME (
@@ -636,53 +615,679 @@ SELECT
 FROM TICKET AS t;
 
 -- ============================================================
--- BUSINESS RULES THAT NEED TRANSACTIONAL / TRIGGER / APP LOGIC
+-- 9. MySQL 9.7-compatible business-rule triggers
 -- ============================================================
+-- MySQL 9.7 rejects CHECK constraints that reference columns which
+-- also participate in foreign keys having referential actions.
+-- Those rules are implemented below as triggers instead.
 --
--- The following are specified in Phase 1 but cannot all be
--- guaranteed by ordinary foreign keys and row-level CHECKs:
+-- IMPORTANT LIMITATION:
+-- MySQL has no deferred constraint triggers. Rules that require
+-- multiple child rows (e.g. every GAME must have AVAILABLE_ON rows,
+-- every RUN must have RUN_TIME and PLAYED_BY rows) are checked at
+-- the point where the operation becomes meaningful (e.g. before a
+-- run is verified), and must also be validated by the application
+-- before committing a newly-created game/run workflow.
+-- ============================================================
+
+DELIMITER $$
+
+-- ------------------------------------------------------------
+-- GAME rules
+-- ------------------------------------------------------------
+
+CREATE TRIGGER trg_game_bi
+BEFORE INSERT ON GAME
+FOR EACH ROW
+BEGIN
+    IF NEW.base_game_id IS NOT NULL
+       AND NEW.base_game_id = NEW.game_id THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'A game cannot be its own base game';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_game_bu
+BEFORE UPDATE ON GAME
+FOR EACH ROW
+BEGIN
+    IF NEW.base_game_id IS NOT NULL
+       AND NEW.base_game_id = NEW.game_id THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'A game cannot be its own base game';
+    END IF;
+END$$
+
+-- A game must retain at least one available platform.
+CREATE TRIGGER trg_available_on_bd
+BEFORE DELETE ON AVAILABLE_ON
+FOR EACH ROW
+BEGIN
+    IF (SELECT COUNT(*) FROM AVAILABLE_ON
+        WHERE game_id = OLD.game_id) <= 1 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'A game must have at least one available platform';
+    END IF;
+END$$
+
+-- ------------------------------------------------------------
+-- USER / social rules
+-- ------------------------------------------------------------
+
+CREATE TRIGGER trg_follows_bi
+BEFORE INSERT ON FOLLOWS
+FOR EACH ROW
+BEGIN
+    IF NEW.follower_id = NEW.followed_id THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'A user cannot follow themselves';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_follows_bu
+BEFORE UPDATE ON FOLLOWS
+FOR EACH ROW
+BEGIN
+    IF NEW.follower_id = NEW.followed_id THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'A user cannot follow themselves';
+    END IF;
+END$$
+
+-- ------------------------------------------------------------
+-- RUN rules
+-- ------------------------------------------------------------
+
+CREATE TRIGGER trg_run_bi
+BEFORE INSERT ON RUN
+FOR EACH ROW
+BEGIN
+    DECLARE v_release_date DATE;
+    DECLARE v_available INT DEFAULT 0;
+    DECLARE v_region_count INT DEFAULT 0;
+    DECLARE v_region_match INT DEFAULT 0;
+    DECLARE v_emulators_allowed BOOLEAN;
+
+    SELECT release_date, emulators_allowed
+      INTO v_release_date, v_emulators_allowed
+      FROM GAME WHERE game_id = NEW.game_id;
+
+    SELECT COUNT(*) INTO v_available
+      FROM AVAILABLE_ON
+     WHERE game_id = NEW.game_id
+       AND platform_id = NEW.platform_id;
+
+    IF v_available = 0 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Run platform is not available for this game';
+    END IF;
+
+    SELECT COUNT(*) INTO v_region_count
+      FROM RELEASED_IN WHERE game_id = NEW.game_id;
+
+    IF v_region_count > 0 THEN
+        IF NEW.region_id IS NULL THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'A region is required for this game';
+        END IF;
+        SELECT COUNT(*) INTO v_region_match
+          FROM RELEASED_IN
+         WHERE game_id = NEW.game_id AND region_id = NEW.region_id;
+        IF v_region_match = 0 THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Run region is not a release region for this game';
+        END IF;
+    END IF;
+
+    IF NEW.run_date > CURRENT_DATE() THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Run date cannot be in the future';
+    END IF;
+
+    IF v_release_date IS NOT NULL AND NEW.run_date < v_release_date THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Run date cannot precede game release date';
+    END IF;
+
+    IF NEW.emulated = TRUE AND v_emulators_allowed = FALSE THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Emulators are not allowed for this game';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM `USER`
+               WHERE user_id = NEW.submitter_id AND banned_on IS NOT NULL) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Banned users cannot submit runs';
+    END IF;
+
+    IF (NEW.examiner_id IS NULL) <> (NEW.decided_on IS NULL) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Examiner and decision timestamp must be supplied together';
+    END IF;
+
+    IF NEW.examiner_id IS NULL AND NEW.reject_reason IS NOT NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'A run cannot have a rejection reason before examination';
+    END IF;
+
+    IF NEW.examiner_id IS NOT NULL THEN
+        IF NEW.reject_reason IS NOT NULL THEN
+            IF NOT EXISTS (
+                SELECT 1 FROM `USER`
+                 WHERE user_id = NEW.examiner_id
+                   AND site_role = 'administrator'
+            ) THEN
+                SIGNAL SQLSTATE '45000'
+                    SET MESSAGE_TEXT = 'Only an administrator may reject by ban exception';
+            END IF;
+        ELSEIF NOT (
+            EXISTS (
+                SELECT 1 FROM MODERATES_GAME mg
+                 WHERE mg.user_id = NEW.examiner_id
+                   AND mg.game_id = NEW.game_id
+                   AND mg.since <= DATE(NEW.decided_on)
+            )
+            OR EXISTS (
+                SELECT 1
+                  FROM MODERATES_SERIES ms
+                  JOIN PART_OF po ON po.series_id = ms.series_id
+                 WHERE ms.user_id = NEW.examiner_id
+                   AND po.game_id = NEW.game_id
+                   AND ms.since <= DATE(NEW.decided_on)
+            )
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Examiner must moderate this game or one of its series';
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM PLAYED_BY pb WHERE pb.run_id = NEW.run_id)
+           AND NEW.run_id IS NOT NULL THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'A run needs at least one player before examination';
+        END IF;
+    END IF;
+END$$
+
+CREATE TRIGGER trg_run_bu
+BEFORE UPDATE ON RUN
+FOR EACH ROW
+BEGIN
+    DECLARE v_release_date DATE;
+    DECLARE v_available INT DEFAULT 0;
+    DECLARE v_region_count INT DEFAULT 0;
+    DECLARE v_region_match INT DEFAULT 0;
+    DECLARE v_emulators_allowed BOOLEAN;
+
+    SELECT release_date, emulators_allowed
+      INTO v_release_date, v_emulators_allowed
+      FROM GAME WHERE game_id = NEW.game_id;
+
+    SELECT COUNT(*) INTO v_available
+      FROM AVAILABLE_ON
+     WHERE game_id = NEW.game_id AND platform_id = NEW.platform_id;
+
+    IF v_available = 0 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Run platform is not available for this game';
+    END IF;
+
+    SELECT COUNT(*) INTO v_region_count
+      FROM RELEASED_IN WHERE game_id = NEW.game_id;
+
+    IF v_region_count > 0 THEN
+        IF NEW.region_id IS NULL THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'A region is required for this game';
+        END IF;
+        SELECT COUNT(*) INTO v_region_match
+          FROM RELEASED_IN
+         WHERE game_id = NEW.game_id AND region_id = NEW.region_id;
+        IF v_region_match = 0 THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Run region is not a release region for this game';
+        END IF;
+    END IF;
+
+    IF NEW.run_date > CURRENT_DATE()
+       OR (v_release_date IS NOT NULL AND NEW.run_date < v_release_date) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Run date must be between game release date and today';
+    END IF;
+
+    IF NEW.emulated = TRUE AND v_emulators_allowed = FALSE THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Emulators are not allowed for this game';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM `USER`
+               WHERE user_id = NEW.submitter_id AND banned_on IS NOT NULL) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Banned users cannot submit runs';
+    END IF;
+
+    IF (NEW.examiner_id IS NULL) <> (NEW.decided_on IS NULL) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Examiner and decision timestamp must be supplied together';
+    END IF;
+
+    IF NEW.examiner_id IS NULL AND NEW.reject_reason IS NOT NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'A run cannot have a rejection reason before examination';
+    END IF;
+
+    IF NEW.examiner_id IS NOT NULL THEN
+        IF NOT EXISTS (SELECT 1 FROM RUN_TIME rt WHERE rt.run_id = OLD.run_id) THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'A run needs at least one time before examination';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM PLAYED_BY pb WHERE pb.run_id = OLD.run_id) THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'A run needs at least one player before examination';
+        END IF;
+        IF EXISTS (
+            SELECT 1 FROM GAME g
+             WHERE g.game_id = NEW.game_id AND g.require_video = TRUE
+        ) AND NOT EXISTS (
+            SELECT 1 FROM RUN_VIDEO_LINK rv WHERE rv.run_id = OLD.run_id
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'This game requires a run video';
+        END IF;
+
+        IF NEW.reject_reason IS NOT NULL THEN
+            IF NOT EXISTS (SELECT 1 FROM `USER`
+                           WHERE user_id = NEW.examiner_id
+                             AND site_role = 'administrator') THEN
+                SIGNAL SQLSTATE '45000'
+                    SET MESSAGE_TEXT = 'Only an administrator may reject by ban exception';
+            END IF;
+        ELSEIF NOT (
+            EXISTS (SELECT 1 FROM MODERATES_GAME mg
+                    WHERE mg.user_id = NEW.examiner_id
+                      AND mg.game_id = NEW.game_id
+                      AND mg.since <= DATE(NEW.decided_on))
+            OR EXISTS (
+                SELECT 1 FROM MODERATES_SERIES ms
+                JOIN PART_OF po ON po.series_id = ms.series_id
+                WHERE ms.user_id = NEW.examiner_id
+                  AND po.game_id = NEW.game_id
+                  AND ms.since <= DATE(NEW.decided_on)
+            )
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Examiner must moderate this game or one of its series';
+        END IF;
+    END IF;
+END$$
+
+-- A RUN_TIME must use a time type configured for its game.
+CREATE TRIGGER trg_run_time_bi
+BEFORE INSERT ON RUN_TIME
+FOR EACH ROW
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM RUN r JOIN GAME g ON g.game_id = r.game_id
+         WHERE r.run_id = NEW.run_id
+           AND NEW.time_type IN (g.run_time_type_1,
+                                 g.run_time_type_2,
+                                 g.run_time_type_3)
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Time type is not configured for this game';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_run_time_bu
+BEFORE UPDATE ON RUN_TIME
+FOR EACH ROW
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM RUN r JOIN GAME g ON g.game_id = r.game_id
+         WHERE r.run_id = NEW.run_id
+           AND NEW.time_type IN (g.run_time_type_1,
+                                 g.run_time_type_2,
+                                 g.run_time_type_3)
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Time type is not configured for this game';
+    END IF;
+END$$
+
+-- ------------------------------------------------------------
+-- LEVEL_RUN specialization rule
+-- ------------------------------------------------------------
+
+CREATE TRIGGER trg_level_run_bi
+BEFORE INSERT ON LEVEL_RUN
+FOR EACH ROW
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+          FROM RUN r
+          JOIN CATEGORY c
+            ON c.game_id = r.game_id AND c.category_no = r.category_no
+         WHERE r.run_id = NEW.run_id AND c.type = 'per level'
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'LEVEL_RUN is allowed only for per-level categories';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_level_run_bu
+BEFORE UPDATE ON LEVEL_RUN
+FOR EACH ROW
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+          FROM RUN r
+          JOIN CATEGORY c
+            ON c.game_id = r.game_id AND c.category_no = r.category_no
+         WHERE r.run_id = NEW.run_id AND c.type = 'per level'
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'LEVEL_RUN is allowed only for per-level categories';
+    END IF;
+END$$
+
+-- ------------------------------------------------------------
+-- Banned-user and forum rules
+-- ------------------------------------------------------------
+
+CREATE TRIGGER trg_thread_bi
+BEFORE INSERT ON THREAD
+FOR EACH ROW
+BEGIN
+    IF EXISTS (SELECT 1 FROM `USER`
+               WHERE user_id = NEW.starter_id AND banned_on IS NOT NULL) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Banned users cannot start threads';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_reply_bi
+BEFORE INSERT ON REPLY
+FOR EACH ROW
+BEGIN
+    IF EXISTS (SELECT 1 FROM `USER`
+               WHERE user_id = NEW.author_id AND banned_on IS NOT NULL) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Banned users cannot post replies';
+    END IF;
+    IF EXISTS (SELECT 1 FROM THREAD
+               WHERE forum_id = NEW.forum_id
+                 AND thread_code = NEW.thread_code
+                 AND is_locked = TRUE) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Cannot reply to a locked thread';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_reply_bu
+BEFORE UPDATE ON REPLY
+FOR EACH ROW
+BEGIN
+    IF EXISTS (SELECT 1 FROM THREAD
+               WHERE forum_id = NEW.forum_id
+                 AND thread_code = NEW.thread_code
+                 AND is_locked = TRUE) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Cannot edit a reply in a locked thread';
+    END IF;
+END$$
+
+-- ------------------------------------------------------------
+-- NEWS rules
+-- ------------------------------------------------------------
+
+CREATE TRIGGER trg_news_post_bi
+BEFORE INSERT ON NEWS_POST
+FOR EACH ROW
+BEGIN
+    IF EXISTS (SELECT 1 FROM `USER`
+               WHERE user_id = NEW.author_id AND banned_on IS NOT NULL) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Banned users cannot write news';
+    END IF;
+
+    IF NEW.status = 'approved' THEN
+        IF NEW.approver_id IS NULL OR NEW.approved_at IS NULL THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Approved news requires approver and approval timestamp';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM `USER`
+                       WHERE user_id = NEW.approver_id
+                         AND site_role = 'administrator') THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'News approver must be an administrator';
+        END IF;
+        IF NEW.approver_id = NEW.author_id THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'News author cannot approve their own post';
+        END IF;
+    ELSEIF NEW.approver_id IS NOT NULL OR NEW.approved_at IS NOT NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Pending/rejected news cannot have approval fields';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_news_post_bu
+BEFORE UPDATE ON NEWS_POST
+FOR EACH ROW
+BEGIN
+    IF NEW.status = 'approved' THEN
+        IF NEW.approver_id IS NULL OR NEW.approved_at IS NULL THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Approved news requires approver and approval timestamp';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM `USER`
+                       WHERE user_id = NEW.approver_id
+                         AND site_role = 'administrator') THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'News approver must be an administrator';
+        END IF;
+        IF NEW.approver_id = NEW.author_id THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'News author cannot approve their own post';
+        END IF;
+    ELSEIF NEW.approver_id IS NOT NULL OR NEW.approved_at IS NOT NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Pending/rejected news cannot have approval fields';
+    END IF;
+END$$
+
+-- ------------------------------------------------------------
+-- TICKET rules (replaces CHECKs that conflict with FK actions)
+-- ------------------------------------------------------------
+
+CREATE TRIGGER trg_ticket_bi
+BEFORE INSERT ON TICKET
+FOR EACH ROW
+BEGIN
+    IF NEW.game_id IS NOT NULL AND NEW.run_id IS NOT NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'A ticket cannot reference both a game and a run';
+    END IF;
+    IF NEW.run_id IS NOT NULL AND NEW.ticket_type <> 'run report' THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Only run-report tickets may reference a run';
+    END IF;
+    IF NEW.closed_at IS NOT NULL AND NEW.handler_id IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'A closed ticket must have a handler';
+    END IF;
+    IF (NEW.closed_at IS NULL) <> (NEW.resolution IS NULL) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Ticket resolution and closed_at must be set together';
+    END IF;
+    IF NEW.closed_at IS NOT NULL AND NEW.closed_at < NEW.created_at THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Ticket cannot be closed before it was created';
+    END IF;
+    IF NEW.handler_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM `USER`
+         WHERE user_id = NEW.handler_id AND site_role = 'administrator'
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Ticket handler must be an administrator';
+    END IF;
+    IF EXISTS (SELECT 1 FROM `USER`
+               WHERE user_id = NEW.raised_by AND banned_on IS NOT NULL)
+       AND NEW.ticket_type <> 'ban appeal' THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Banned users may raise only ban-appeal tickets';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_ticket_bu
+BEFORE UPDATE ON TICKET
+FOR EACH ROW
+BEGIN
+    IF NEW.game_id IS NOT NULL AND NEW.run_id IS NOT NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'A ticket cannot reference both a game and a run';
+    END IF;
+    IF NEW.run_id IS NOT NULL AND NEW.ticket_type <> 'run report' THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Only run-report tickets may reference a run';
+    END IF;
+    IF NEW.closed_at IS NOT NULL AND NEW.handler_id IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'A closed ticket must have a handler';
+    END IF;
+    IF (NEW.closed_at IS NULL) <> (NEW.resolution IS NULL) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Ticket resolution and closed_at must be set together';
+    END IF;
+    IF NEW.closed_at IS NOT NULL AND NEW.closed_at < NEW.created_at THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Ticket cannot be closed before it was created';
+    END IF;
+    IF NEW.handler_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM `USER`
+         WHERE user_id = NEW.handler_id AND site_role = 'administrator'
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Ticket handler must be an administrator';
+    END IF;
+    IF EXISTS (SELECT 1 FROM `USER`
+               WHERE user_id = NEW.raised_by AND banned_on IS NOT NULL)
+       AND NEW.ticket_type <> 'ban appeal' THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Banned users may raise only ban-appeal tickets';
+    END IF;
+END$$
+
+-- ------------------------------------------------------------
+-- FEATURE rules
+-- ------------------------------------------------------------
+
+CREATE TRIGGER trg_features_bi
+BEFORE INSERT ON FEATURES
+FOR EACH ROW
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM RUN r
+         WHERE r.run_id = NEW.run_id
+           AND r.examiner_id IS NOT NULL
+           AND r.reject_reason IS NULL
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Only verified runs can be featured';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM PLAYED_BY pb
+         WHERE pb.run_id = NEW.run_id AND pb.user_id = NEW.user_id
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Users may feature only runs they participated in';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_features_bu
+BEFORE UPDATE ON FEATURES
+FOR EACH ROW
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM RUN r
+         WHERE r.run_id = NEW.run_id
+           AND r.examiner_id IS NOT NULL
+           AND r.reject_reason IS NULL
+    ) OR NOT EXISTS (
+        SELECT 1 FROM PLAYED_BY pb
+         WHERE pb.run_id = NEW.run_id AND pb.user_id = NEW.user_id
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Only your own verified runs can be featured';
+    END IF;
+END$$
+
+-- Moderators cannot be banned users.
+CREATE TRIGGER trg_moderates_game_bi
+BEFORE INSERT ON MODERATES_GAME
+FOR EACH ROW
+BEGIN
+    IF EXISTS (SELECT 1 FROM `USER`
+               WHERE user_id = NEW.user_id AND banned_on IS NOT NULL) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Banned users cannot hold moderator roles';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_moderates_series_bi
+BEFORE INSERT ON MODERATES_SERIES
+FOR EACH ROW
+BEGIN
+    IF EXISTS (SELECT 1 FROM `USER`
+               WHERE user_id = NEW.user_id AND banned_on IS NOT NULL) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Banned users cannot hold moderator roles';
+    END IF;
+END$$
+
+-- A game with runs cannot be deleted.
+CREATE TRIGGER trg_game_bd
+BEFORE DELETE ON GAME
+FOR EACH ROW
+BEGIN
+    IF EXISTS (SELECT 1 FROM RUN WHERE game_id = OLD.game_id) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Cannot delete a game while runs exist';
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- ============================================================
+-- 10. Rules requiring transaction/application-level validation
+-- ============================================================
+-- The following cannot be safely enforced as ordinary immediate
+-- row triggers because a valid workflow inserts a parent first and
+-- its required child rows afterwards. Validate these before COMMIT:
 --
--- 1. Every GAME must have at least one AVAILABLE_ON row.
--- 2. RUN.platform_id must be in AVAILABLE_ON for RUN.game_id.
--- 3. RUN.region_id, when supplied, must be in RELEASED_IN for
---    the same game. If a game has regions, the run must provide one.
--- 4. RUN_TIME.time_type must be one of the owning game's time
---    types, and every run must have its game's default time type.
--- 5. RUN must have at least one RUN_TIME row and one PLAYED_BY row.
--- 6. If GAME.require_video = TRUE, a run must have a video link.
---    If GAME.emulators_allowed = FALSE, RUN.emulated must be FALSE.
--- 7. RUN.run_date must not be in the future or before GAME.release_date.
--- 8. A LEVEL_RUN must belong to a CATEGORY whose type is
---    'per level'; a full-game category must not have LEVEL_RUN.
---    The composite FK above ensures its level belongs to the
---    same game as the run's category.
--- 9. The examiner must be a moderator of the run's game at the
---    decision date, directly or through a series containing it.
---    Ban-generated rejection is the administrator exception.
--- 10. A user may feature only their own verified run(s) in which
---     they are a PLAYED_BY participant.
--- 11. A moderator may hold at most one direct role per game and
---     one direct role per series (enforced by the primary keys).
--- 12. A reply cannot be inserted into a locked thread.
--- 13. News approver must be an administrator and must differ
---     from the author. The status CHECK enforces the approval
---     fields, not the administrator/author rule.
--- 14. Banned users cannot submit runs, write news, start threads,
---     post replies, or hold moderator roles; they may raise only
---     ban-appeal tickets.
--- 15. Ticket handlers must be administrators. Ticket status can
---     only move open -> in progress -> closed.
--- 16. A game deletion must be refused if runs exist. Its dependent
---     categories, levels, forum threads/replies, etc. may then be
---     removed according to the project deletion policy.
--- 17. USER deletion is restricted by authored/submitted/history
---     records; banning should be used instead.
--- 18. Run verification/rejection, obsolete-run recalculation,
---     leaderboard places and world records must be handled
---     atomically in a transaction.
+-- A. Every GAME must have at least one AVAILABLE_ON row.
+-- B. Every RUN must have at least one RUN_TIME row and one PLAYED_BY
+--    row, and must have the game's default time type in RUN_TIME.
+-- C. If GAME.require_video = TRUE, a RUN must have a RUN_VIDEO_LINK
+--    before it is verified. (The RUN update trigger checks this.)
+-- D. When a game has configured release regions, each run must use
+--    one of them; the RUN triggers enforce this.
+-- E. The RUN_TIME triggers ensure every supplied time type belongs
+--    to the game's configured types.
+-- F. A LEVEL_RUN is allowed only for a 'per level' category.
+-- G. The RUN triggers validate platform, date, emulator policy,
+--    examiner authority, and submitter ban status.
+-- H. The TICKET triggers enforce the game/run exclusivity, ticket
+--    type, closure/resolution, handler authority, and banned-user
+--    ban-appeal-only rules.
+-- I. The NEWS_POST triggers enforce approval fields, administrator
+--    approval, author/approver separation, and author ban status.
+-- J. Thread/reply, self-follow, feature, moderator, and game-delete
+--    rules are enforced by triggers above.
 --
--- NOTE ON PHASE 2 EVALUATION:
--- Phase 2 flags that moderator-role history is not retained by the
--- original EER design. This schema follows the Phase 3 mapping;
--- it does not add role end dates or a moderation-history table.
+-- MySQL does not support deferred constraint triggers. For rules A
+-- and B, the application must perform the parent + child inserts in
+-- one transaction and run validation queries before COMMIT.
+--
+-- Phase 2 evaluation note: moderator-role history is not retained
+-- in this Phase 3 mapping; this script does not add role end dates.
 -- ============================================================
