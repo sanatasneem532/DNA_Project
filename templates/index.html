@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Games{% endblock %}
+{% block content %}
+<div class="split">
+  <section>
+    <h1>Games</h1>
+    <form class="filters" method="get" action="{{ url_for('index') }}">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search by name or abbreviation">
+      <select name="genre" data-autosubmit>
+        <option value="">Any genre</option>
+        {% for x in genres %}<option value="{{ x.genre }}" {{ 'selected' if x.genre == genre }}>{{ x.genre }}</option>{% endfor %}
+      </select>
+      <select name="platform" data-autosubmit>
+        <option value="0">Any platform</option>
+        {% for p in platforms %}<option value="{{ p.platform_id }}" {{ 'selected' if p.platform_id == platform_id }}>{{ p.platform_name }}</option>{% endfor %}
+      </select>
+      <select name="sort" data-autosubmit>
+        <option value="name" {{ 'selected' if sort=='name' }}>A–Z</option>
+        <option value="runs" {{ 'selected' if sort=='runs' }}>Most runs</option>
+        <option value="followers" {{ 'selected' if sort=='followers' }}>Most followed</option>
+        <option value="newest" {{ 'selected' if sort=='newest' }}>Newest release</option>
+      </select>
+      <button class="btn primary">Search</button>
+    </form>
+
+    {% if games %}
+    <div class="gamelist">
+      {% for gm in games %}
+      <a class="gamerow" href="{{ url_for('game', abbr=gm.abbreviation) }}">
+        <span class="gname">{{ gm.name_international }}
+          {% if gm.name_japanese %}<small class="muted">{{ gm.name_japanese }}</small>{% endif %}</span>
+        <span class="muted">{{ gm.genres or 'No genre listed' }}</span>
+        <span class="num">{{ gm.verified_runs }} runs</span>
+        <span class="num">{{ gm.followers }} followers</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+      <p class="empty">No games match those filters. Clear the genre or platform, or try a shorter search.</p>
+    {% endif %}
+  </section>
+
+  <aside>
+    <h2>Latest verified runs</h2>
+    {% for r in latest %}
+      <a class="run-mini" href="{{ url_for('run_detail', run_id=r.run_id) }}">
+        <span class="time">{{ r.total_ms|ms }}</span>
+        <span>{{ r.name_international }} · {{ r.category_name }}</span>
+        <small class="muted">by {{ r.players }}</small>
+      </a>
+    {% else %}
+      <p class="empty">No verified runs yet.</p>
+    {% endfor %}
+  </aside>
+</div>
+{% endblock %}

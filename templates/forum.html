@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ fm.forum_name }}{% endblock %}
+{% block content %}
+<h1>{{ fm.forum_name }}</h1>
+<form class="filters" method="get"><input type="search" name="q" value="{{ q }}" placeholder="Search thread titles"><button class="btn primary">Search</button></form>
+{% if threads %}
+<div class="scroll"><table>
+  <thead><tr><th>Thread</th><th>Started by</th><th>Replies</th><th>Last activity</th></tr></thead><tbody>
+  {% for t in threads %}
+    <tr><td><a href="{{ url_for('thread', forum_id=fm.forum_id, thread_code=t.thread_code) }}">{{ t.title }}</a>{% if t.is_locked %} <span class="badge">locked</span>{% endif %}</td>
+        <td>{{ t.starter }}</td><td class="num">{{ t.replies }}</td><td class="muted">{{ (t.last_reply or t.created_at)|dt }}</td></tr>
+  {% endfor %}</tbody></table></div>
+{% else %}<p class="empty">No threads {{ 'match that title' if q else 'here yet' }}.</p>{% endif %}
+{% endblock %}

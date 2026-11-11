@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Act as a user{% endblock %}
+{% block content %}
+<h1>Act as a user</h1>
+<p class="muted">The demo has no passwords. Pick who you are, then try submitting runs, replying in forums or verifying runs. Moderator rules are enforced by the database.</p>
+<form method="post" class="stack narrow">
+  <input type="hidden" name="next" value="{{ next }}">
+  <label>User
+    <select name="user_id" required>
+      {% for u in users %}<option value="{{ u.user_id }}">{{ u.username }} ({{ u.site_role }}{% if u.banned_on %}, banned{% endif %})</option>{% endfor %}
+    </select>
+  </label>
+  <button class="btn primary">Continue</button>
+</form>
+{% endblock %}

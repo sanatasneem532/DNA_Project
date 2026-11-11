@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Error' if message else 'Not found' }}{% endblock %}
+{% block content %}
+<h1>{{ 'Something went wrong' if message else 'Page not found' }}</h1>
+<p>{{ message or "That page or record does not exist. Check the link, or go back to the games list." }}</p>
+<p><a class="btn" href="{{ url_for('index') }}">Back to games</a></p>
+{% endblock %}

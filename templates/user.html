@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ u.username }}{% endblock %}
+{% block content %}
+<div class="gamehead">
+  <div>
+    <h1>{{ u.username }} {% if u.banned_on %}<span class="badge status-rejected">banned</span>{% endif %}</h1>
+    <p class="muted">
+      <span class="badge">{{ u.site_role }}</span>
+      {% if u.pronouns %} · {{ u.pronouns }}{% endif %}
+      {% if u.country %} · {{ u.country }}{% if u.subregion %}, {{ u.subregion }}{% endif %}{% endif %}
+      · Joined {{ u.signup_date|d }} · Last online {{ u.last_online|dt }}
+    </p>
+    <p>{{ sc.followers }} followers · {{ sc.following }} following</p>
+  </div>
+  <div class="actions">
+    {% if g.user and g.user.user_id != u.user_id %}
+      {% if sc.i_follow|int %}
+        <form method="post" action="{{ url_for('unfollow_user', username=u.username) }}" class="inline"><button class="btn">Unfollow</button></form>
+      {% else %}
+        <form method="post" action="{{ url_for('follow_user', username=u.username) }}" class="inline"><button class="btn primary">Follow</button></form>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="split">
+  <section>
+    {% if featured %}
+      <h2>Featured runs</h2>
+      <div class="scroll"><table><tbody>
+      {% for f in featured %}
+        <tr><td><a href="{{ url_for('game', abbr=f.abbreviation) }}">{{ f.name_international }}</a> · {{ f.category_name }}</td>
+            <td><a class="time" href="{{ url_for('run_detail', run_id=f.run_id) }}">{{ f.total_ms|ms }}</a></td></tr>
+      {% endfor %}</tbody></table></div>
+    {% endif %}
+
+    <h2>Personal bests</h2>
+    {% if pbs %}
+    <div class="scroll"><table>
+      <thead><tr><th>Game</th><th>Category</th><th>Time</th><th>Date</th></tr></thead><tbody>
+      {% for p in pbs %}
+        <tr><td><a href="{{ url_for('game', abbr=p.abbreviation) }}">{{ p.name_international }}</a></td>
+            <td>{{ p.category_name }}{% if p.level_name %} · {{ p.level_name }}{% endif %}</td>
+            <td><a class="time" href="{{ url_for('run_detail', run_id=p.run_id) }}">{{ p.total_ms|ms }}</a></td>
+            <td class="muted">{{ p.run_date|d }}</td></tr>
+      {% endfor %}</tbody></table></div>
+    {% else %}<p class="empty">No verified runs yet.</p>{% endif %}
+
+    <h2>Recent submissions</h2>
+    {% for s in submitted %}
+      <p><span class="badge status-{{ s.status }}">{{ s.status }}</span>
+         <a href="{{ url_for('run_detail', run_id=s.run_id) }}">{{ s.name_international }} · {{ s.category_name }}</a>
+         <small class="muted">{{ s.submitted_at|dt }}</small></p>
+    {% else %}<p class="empty">Nothing submitted.</p>{% endfor %}
+  </section>
+
+  <aside>
+    {% if mods %}<h3>Moderates</h3>
+      {% for m in mods %}<p><a href="{{ url_for('game', abbr=m.slug) }}">{{ m.name }}</a> <span class="badge">{{ m.role_name }}</span></p>{% endfor %}{% endif %}
+    {% if plans %}<h3>Membership</h3>
+      {% for p in plans %}<p>{{ p.plan_name }}<br><small class="muted">until {{ p.end_date|d }}</small></p>{% endfor %}{% endif %}
+    {% if social %}<h3>Links</h3>
+      {% for s in social %}<a class="ext" href="{{ s.link }}" target="_blank" rel="noopener">{{ s.link }}</a>{% endfor %}{% endif %}
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Run #{{ run.run_id }}{% endblock %}
+{% block content %}
+<h1>{{ run.name_international }} · {{ run.category_name }}{% if run.level_name %} · {{ run.level_name }}{% endif %}</h1>
+<p>
+  <span class="badge status-{{ run.status }}">{{ run.status }}</span>
+  <a href="{{ url_for('game', abbr=run.abbreviation, cat=run.category_no) }}">View leaderboard</a>
+</p>
+
+<div class="split">
+  <section>
+    <h2>Times</h2>
+    <table><thead><tr><th>Type</th><th>Time</th></tr></thead><tbody>
+      {% for t in times %}<tr><td>{{ t.time_type }}{% if t.time_type == run.default_time_type %} <span class="badge">default</span>{% endif %}</td><td class="time">{{ t.total_ms|ms }}</td></tr>
+      {% else %}<tr><td colspan="2" class="empty">No time recorded.</td></tr>{% endfor %}
+    </tbody></table>
+
+    <h2>Players</h2>
+    {% for p in players %}<p><a href="{{ url_for('user_profile', username=p.username) }}">{{ p.username }}</a></p>{% endfor %}
+
+    {% if run.comment %}<h2>Comment</h2><p class="rules">{{ run.comment }}</p>{% endif %}
+    {% if run.status == 'rejected' %}<h2>Rejection reason</h2><p class="rules">{{ run.reject_reason }}</p>{% endif %}
+    {% if videos %}<h2>Video</h2>{% for v in videos %}<a class="ext" href="{{ v.link }}" target="_blank" rel="noopener">{{ v.link }}</a>{% endfor %}{% endif %}
+  </section>
+
+  <aside>
+    <dl class="facts">
+      <dt>Played on</dt><dd>{{ run.run_date|d }}</dd>
+      <dt>Platform</dt><dd>{{ run.platform_name }}{% if run.emulated %} (emulator){% endif %}</dd>
+      <dt>Region</dt><dd>{{ run.region_name or '—' }}</dd>
+      <dt>Submitted</dt><dd>{{ run.submitted_at|dt }} by <a href="{{ url_for('user_profile', username=run.submitter) }}">{{ run.submitter }}</a></dd>
+      <dt>Decided</dt><dd>{% if run.examiner %}{{ run.decided_on|dt }} by {{ run.examiner }}{% else %}Waiting for a moderator{% endif %}</dd>
+    </dl>
+    {% if g.user and run.status == 'new' %}
+      <h3>Moderator actions</h3>
+      <form method="post" action="{{ url_for('verify_run', run_id=run.run_id) }}"><button class="btn primary">Verify</button></form>
+      <form method="post" action="{{ url_for('reject_run', run_id=run.run_id) }}" class="stack">
+        <input name="reason" placeholder="Reason for rejecting" required>
+        <button class="btn danger">Reject</button>
+      </form>
+      {% if g.user.user_id == run.submitter_id %}
+      <form method="post" action="{{ url_for('delete_run', run_id=run.run_id) }}" data-confirm="Withdraw this run?">
+        <button class="btn">Withdraw my run</button></form>
+      {% endif %}
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

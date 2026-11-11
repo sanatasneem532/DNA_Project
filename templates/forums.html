@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Forums{% endblock %}
+{% block content %}
+<h1>Forums</h1>
+<div class="gamelist">
+  {% for f in rows %}
+    <a class="gamerow" href="{{ url_for('forum', forum_id=f.forum_id) }}">
+      <span class="gname">{{ f.forum_name }}</span>
+      <span class="muted">{{ 'Game forum' if f.abbreviation else 'General' }}</span>
+      <span class="num">{{ f.threads }} threads</span>
+    </a>
+  {% else %}<p class="empty">No forums yet.</p>{% endfor %}
+</div>
+{% endblock %}

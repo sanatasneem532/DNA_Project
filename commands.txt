@@ -1,0 +1,20 @@
+# terminal commands 
+sudo systemctl start mysql
+sudo mysql
+sudo mysql < schema.sql
+sudo mysql --show-warnings < schema.sql
+sudo mysql --verbose < schema.sql
+sudo mysql --verbose --show-warnings < schema.sql
+mysql -u root -p < schema.sql
+mysql -u root -p < populate.sql
+
+# sql commands
+SOURCE <path/to/sqlfile/>schema.sql;
+CREATE USER 'appuser'@'localhost' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON speedrun_db.* TO 'appuser'@'localhost';
+
+# python commands
+python3 -m venv app_venv
+source app_venv/bin/activate
+pip install -r requirements.txt
+python app.py

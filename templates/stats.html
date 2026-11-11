@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Stats{% endblock %}
+{% block content %}
+<h1>Statistics</h1>
+<div class="split even">
+  <section>
+    <h2>Most verified runs</h2>
+    <table><thead><tr><th>Player</th><th>Country</th><th>Runs</th><th>Games</th></tr></thead><tbody>
+    {% for r in top_runners %}
+      <tr><td><a href="{{ url_for('user_profile', username=r.username) }}">{{ r.username }}</a></td><td>{{ r.country or '—' }}</td><td class="num">{{ r.verified_runs }}</td><td class="num">{{ r.games_played }}</td></tr>
+    {% else %}<tr><td colspan="4" class="empty">No verified runs yet.</td></tr>{% endfor %}
+    </tbody></table>
+
+    <h2>Verified runs by platform</h2>
+    <table><thead><tr><th>Platform</th><th>Runs</th><th>On emulator</th></tr></thead><tbody>
+    {% for r in platform_usage %}<tr><td>{{ r.platform_name }}</td><td class="num">{{ r.runs }}</td><td class="num">{{ r.emulated_runs|int }}</td></tr>{% endfor %}
+    </tbody></table>
+  </section>
+  <section>
+    <h2>Run activity by game</h2>
+    <table><thead><tr><th>Game</th><th>Verified</th><th>Waiting</th><th>Rejected</th></tr></thead><tbody>
+    {% for r in game_activity %}
+      <tr><td><a href="{{ url_for('game', abbr=r.abbreviation) }}">{{ r.name_international }}</a></td>
+          <td class="num">{{ r.verified|int }}</td><td class="num">{{ r.waiting|int }}</td><td class="num">{{ r.rejected|int }}</td></tr>
+    {% endfor %}
+    </tbody></table>
+  </section>
+</div>
+{% endblock %}

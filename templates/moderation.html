@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Moderation queue{% endblock %}
+{% block content %}
+<h1>Moderation queue</h1>
+<p class="muted">
+  {% if show_all %}Showing every run waiting for a decision. The database only accepts a decision from a moderator of that game or series.
+    <a href="{{ url_for('moderation') }}">Show only my games</a>
+  {% else %}Runs waiting in games you moderate.
+    <a href="{{ url_for('moderation', all=1) }}">Show all waiting runs</a>
+  {% endif %}
+</p>
+
+{% if queue %}
+<div class="scroll"><table>
+  <thead><tr><th>Run</th><th>Player(s)</th><th>Time</th><th>Video</th><th>Submitted</th><th>Decision</th></tr></thead>
+  <tbody>
+  {% for r in queue %}
+    <tr>
+      <td><a href="{{ url_for('run_detail', run_id=r.run_id) }}">#{{ r.run_id }}</a> {{ r.name_international }} · {{ r.category_name }}</td>
+      <td>{{ r.players }}</td>
+      <td class="time">{{ r.total_ms|ms }}</td>
+      <td>{{ 'yes' if r.videos else 'none' }}</td>
+      <td class="muted">{{ r.submitted_at|dt }}</td>
+      <td class="decide">
+        <form method="post" action="{{ url_for('verify_run', run_id=r.run_id) }}" class="inline"><button class="btn small primary">Verify</button></form>
+        <form method="post" action="{{ url_for('reject_run', run_id=r.run_id) }}" class="inline">
+          <input name="reason" placeholder="Reason" required><button class="btn small danger">Reject</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+  <p class="empty">Nothing is waiting. Runs submitted to your games will appear here.</p>
+{% endif %}
+{% endblock %}

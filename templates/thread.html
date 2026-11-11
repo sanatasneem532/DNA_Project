@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ th.title }}{% endblock %}
+{% block content %}
+<p class="muted"><a href="{{ url_for('forum', forum_id=th.forum_id) }}">{{ th.forum_name }}</a></p>
+<h1>{{ th.title }} {% if th.is_locked %}<span class="badge">locked</span>{% endif %}</h1>
+<p class="muted">Started by {{ th.starter }} on {{ th.created_at|dt }}</p>
+
+{% for r in replies %}
+<article class="post">
+  <header><a href="{{ url_for('user_profile', username=r.username) }}"><strong>{{ r.username }}</strong></a>
+    <small class="muted">#{{ r.reply_no }} · {{ r.posted_at|dt }}{% if r.edited_at %} · edited {{ r.edited_at|dt }}{% endif %}</small></header>
+  <p>{{ r.body }}</p>
+  {% if g.user and g.user.user_id == r.author_id %}
+  <div class="post-actions">
+    <details><summary>Edit</summary>
+      <form method="post" class="stack" action="{{ url_for('edit_reply', forum_id=th.forum_id, thread_code=th.thread_code, reply_no=r.reply_no) }}">
+        <textarea name="body" rows="3" required>{{ r.body }}</textarea>
+        <button class="btn small primary">Save changes</button>
+      </form>
+    </details>
+    <form method="post" class="inline" data-confirm="Delete this reply?"
+          action="{{ url_for('delete_reply', forum_id=th.forum_id, thread_code=th.thread_code, reply_no=r.reply_no) }}">
+      <button class="link danger-text">Delete</button></form>
+  </div>
+  {% endif %}
+</article>
+{% else %}<p class="empty">No replies yet.</p>{% endfor %}
+
+<h2>Reply</h2>
+{% if th.is_locked %}
+  <p class="empty">This thread is locked. New replies are not accepted.</p>
+{% else %}
+<form method="post" class="stack narrow" action="{{ url_for('post_reply', forum_id=th.forum_id, thread_code=th.thread_code) }}">
+  <textarea name="body" rows="4" placeholder="{{ 'Write a reply' if g.user else 'Act as a user to reply' }}" required></textarea>
+  <button class="btn primary">Post reply</button>
+</form>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Submit a run{% endblock %}
+{% block content %}
+<h1>Submit a run</h1>
+
+<form method="get" class="filters">
+  <label>Game
+    <select name="game" data-autosubmit>
+      <option value="">Choose a game…</option>
+      {% for x in games %}<option value="{{ x.abbreviation }}" {{ 'selected' if x.abbreviation == abbr }}>{{ x.name_international }}</option>{% endfor %}
+    </select>
+  </label>
+  <noscript><button class="btn">Load game</button></noscript>
+</form>
+
+{% if abbr and not gm %}
+  <p class="empty">No game has the abbreviation “{{ abbr }}”. Pick one from the list.</p>
+{% elif gm %}
+<form method="post" class="stack narrow" id="run-form">
+  <input type="hidden" name="game" value="{{ gm.abbreviation }}">
+  <p class="muted">Submitting as <strong>{{ g.user.username }}</strong>. {{ 'A video link is required. ' if gm.require_video }}{{ 'Emulator runs are not allowed. ' if not gm.emulators_allowed }}</p>
+
+  <label>Category
+    <select name="category_no" id="category" required>
+      {% for c in categories %}<option value="{{ c.category_no }}" data-type="{{ c.type }}" {{ 'selected' if request.form.get('category_no') == c.category_no|string }}>{{ c.name }} ({{ c.type }})</option>{% endfor %}
+    </select>
+  </label>
+
+  <label id="level-wrap" hidden>Level
+    <select name="level_no">
+      <option value="">Choose a level…</option>
+      {% for l in levels %}<option value="{{ l.level_no }}" {{ 'selected' if request.form.get('level_no') == l.level_no|string }}>{{ l.name }}</option>{% endfor %}
+    </select>
+  </label>
+
+  <label>Platform
+    <select name="platform_id" required>
+      <option value="">Choose…</option>
+      {% for p in platforms %}<option value="{{ p.platform_id }}" {{ 'selected' if request.form.get('platform_id') == p.platform_id|string }}>{{ p.platform_name }}</option>{% endfor %}
+    </select>
+  </label>
+
+  {% if regions %}
+  <label>Region
+    <select name="region_id" required>
+      <option value="">Choose…</option>
+      {% for r in regions %}<option value="{{ r.region_id }}" {{ 'selected' if request.form.get('region_id') == r.region_id|string }}>{{ r.region_name }}</option>{% endfor %}
+    </select>
+  </label>
+  {% endif %}
+
+  <label>Date played
+    <input type="date" name="run_date" required value="{{ request.form.get('run_date', '') }}"
+           {% if gm.release_date %}min="{{ gm.release_date }}"{% endif %}>
+  </label>
+
+  <fieldset>
+    <legend>Time ({{ gm.default_time_type }})</legend>
+    <div class="timefields">
+      <label>h <input type="number" name="hours" min="0" max="99" value="{{ request.form.get('hours', 0) }}"></label>
+      <label>m <input type="number" name="minutes" min="0" max="59" value="{{ request.form.get('minutes', 0) }}"></label>
+      <label>s <input type="number" name="seconds" min="0" max="59" value="{{ request.form.get('seconds', 0) }}"></label>
+      <label>ms <input type="number" name="milliseconds" min="0" max="999" value="{{ request.form.get('milliseconds', 0) }}"></label>
+    </div>
+  </fieldset>
+
+  <label>Video link {{ '' if gm.require_video else '(optional)' }}
+    <input type="url" name="video" placeholder="https://" value="{{ request.form.get('video', '') }}" {{ 'required' if gm.require_video }}>
+  </label>
+
+  {% if gm.emulators_allowed %}
+  <label class="check"><input type="checkbox" name="emulated" {{ 'checked' if request.form.get('emulated') }}> Played on an emulator</label>
+  {% endif %}
+
+  <label>Comment (optional)
+    <textarea name="comment" rows="3">{{ request.form.get('comment', '') }}</textarea>
+  </label>
+  <button class="btn primary">Submit run</button>
+</form>
+{% endif %}
+{% endblock %}

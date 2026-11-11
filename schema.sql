@@ -13,10 +13,32 @@
 -- ============================================================
 
 DROP DATABASE IF EXISTS speedrun_db;
+
 CREATE DATABASE speedrun_db
+  -- supports English, Indian languages, special symbols, and emojis
+  -- can store characters requiring up to 4 bytes
   CHARACTER SET utf8mb4
+  -- defines how strings are compared and sorted in the database
+  -- Uses the utf8mb4 character set
+  -- Based on Unicode Collation Algorithm version 9.0
+  -- Accent-insensitive  ->  SELECT 'cafe' = 'café'; is TRUE 
+  -- Case-insensitive ->  SELECT 'Hello' = 'hello'; is TRUE
   COLLATE utf8mb4_0900_ai_ci;
+
 USE speedrun_db;
+
+-- SET @DEBUG = 1;
+-- DELIMITER //
+-- CREATE PROCEDURE DEBUG(IN msg VARCHAR(500))
+-- BEGIN
+--     IF @DEBUG = 1 THEN
+--         SELECT CONCAT('[DEBUG] ', msg) AS '';
+--     END IF;
+-- END //
+
+-- DELIMITER ;
+-- CALL DEBUG('speedrun_db created successfully');
+-- CALL DEBUG('Starting database schema creation');
 
 -- ------------------------------------------------------------
 -- 1. Strong entities
@@ -25,6 +47,9 @@ USE speedrun_db;
 CREATE TABLE SERIES (
     series_id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     series_name     VARCHAR(150) NOT NULL
+-- Supports transactions (COMMIT, ROLLBACK), foreign keys
+-- Uses row-level locking
+-- Provides crash recovery
 ) ENGINE=InnoDB;
 
 CREATE TABLE PLATFORM (
