@@ -21,12 +21,16 @@ Note: the app has no password login. `USER.password_hash` is kept in the schema 
 mysql -u root -p < schema.sql
 mysql -u root -p < populate.sql
 
+# mysql
+CREATE USER 'appuser'@'localhost' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON speedrun_db.* TO 'appuser'@'localhost';
+
 # 2. python deps
-python -m venv venv && source venv/bin/activate      # Windows: venv\Scripts\activate
+python -m venv app_venv && source app_venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # 3. credentials (or edit config.py)
-export DB_USER=root DB_PASSWORD=yourpassword          # Windows: set DB_USER=root
+export DB_USER=appuser DB_PASSWORD=yourpassword          # Windows: set DB_USER=root
 # optional: DB_HOST, DB_PORT, DB_NAME
 
 # 4. run
