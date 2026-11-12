@@ -691,6 +691,15 @@ def new_thread(forum_id):
     return render_template("new_thread.html", fm=fm)
 
 
+# Who may lock a thread: a site administrator, or a moderator / super moderator of the game that owns the forum.
+CAN_LOCK_SQL = """(EXISTS (SELECT 1 FROM `USER` lu WHERE lu.user_id = %s AND lu.site_role = 'administrator')
+                 OR EXISTS (SELECT 1 FROM GAME lg
+                            JOIN MODERATES_GAME lm ON lm.game_id = lg.game_id
+                            JOIN MODERATOR_ROLE lr ON lr.role_id = lm.role_id
+                            WHERE lg.forum_id = %s AND lm.user_id = %s
+                              AND lr.role_name IN ('moderator', 'super moderator')))"""
+
+
 @app.route("/forum/<int:forum_id>/<thread_code>")
 def thread(forum_id, thread_code):
     th = db.fetch_one(
@@ -706,7 +715,26 @@ def thread(forum_id, thread_code):
            FROM REPLY rp JOIN `USER` u ON u.user_id = rp.author_id
            WHERE rp.forum_id = %s AND rp.thread_code = %s ORDER BY rp.reply_no""",
         (forum_id, thread_code))
-    return render_template("thread.html", th=th, replies=replies)
+    can_lock = False
+    if g.user:
+        can_lock = bool(db.fetch_one("SELECT " + CAN_LOCK_SQL + " AS ok",
+                                     (g.user["user_id"], forum_id, g.user["user_id"]))["ok"])
+    return render_template("thread.html", th=th, replies=replies, can_lock=can_lock)
+
+
+# UPDATE: lock / unlock a thread (moderators of the game, or administrators)
+@app.route("/forum/<int:forum_id>/<thread_code>/lock", methods=["POST"])
+def lock_thread(forum_id, thread_code):
+    if not g.user:
+        return need_login()
+    lock = 1 if request.form.get("lock") == "1" else 0
+    uid = g.user["user_id"]
+    return write_and_redirect(
+        lambda: db.execute(
+            "UPDATE THREAD SET is_locked = %s WHERE forum_id = %s AND thread_code = %s AND " + CAN_LOCK_SQL,
+            (lock, forum_id, thread_code, uid, forum_id, uid)),
+        "Thread locked." if lock else "Thread unlocked.",
+        url_for("thread", forum_id=forum_id, thread_code=thread_code))
 
 
 # CREATE: post a reply (next reply_no computed inside a transaction)

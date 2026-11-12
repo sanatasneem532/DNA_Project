@@ -6,6 +6,11 @@
 <div class="page-head">
   <h1>{{ th.title }}</h1>
   <div class="meta"><span>Started by {{ th.starter }}</span><span>{{ th.created_at|d }}</span>{% if th.is_locked %}<span>Locked</span>{% endif %}</div>
+  {% if can_lock %}
+  <div class="row"><form method="post" class="inline" action="{{ url_for('lock_thread', forum_id=th.forum_id, thread_code=th.thread_code) }}">
+    <input type="hidden" name="lock" value="{{ 0 if th.is_locked else 1 }}">
+    <button class="btn sm">{{ 'Unlock thread' if th.is_locked else 'Lock thread' }}</button></form></div>
+  {% endif %}
 </div>
 
 <div style="max-width:720px">

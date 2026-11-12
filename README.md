@@ -56,3 +56,4 @@ Reads = R, writes = W. Click **Act as a user** (top right) before any write.
 17. **Withdraw a pending run (W – DELETE)** – run page of your own run while status is `new`.
 18. **Follow / unfollow a game or a player (W – CREATE / DELETE)** – game page and profile page buttons. Following yourself is blocked by a trigger.
 19. **Start a forum thread (W – CREATE)** – forum page, "New thread" button (`/forum/<id>/new`). One transaction inserts the THREAD (code `x<next number>`) and its first REPLY. Banned users are blocked by a trigger.
+20. **Lock / unlock a thread (W – UPDATE)** – thread page, "Lock thread" / "Unlock thread" button (shown to moderators and super moderators of that game, and to administrators). Sets `THREAD.is_locked`; while locked, the `trg_reply_bi` / `trg_reply_bu` triggers reject new and edited replies.
