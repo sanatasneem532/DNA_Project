@@ -31,3 +31,23 @@ Tickets, memberships, streams, follows, game follows, series moderators, role pe
 
 ## Skipped
 Users whose names contain "." (e.g. `bobo.`, `Phoenix.`) because the schema's username CHECK forbids it.
+
+---
+
+# populate_extra.sql (synthetic supplement)
+
+Run after `populate.sql`: `mysql -u root -p < populate_extra.sql`. Regenerate with `python gen_extra.py populate_extra.sql` (fixed seed, deterministic).
+**All of this is generated, not scraped**, and tested on MySQL 8.4.3 with the triggers active.
+
+| Added | Notes |
+|---|---|
+| 880 fictional users (ids 121-1000; `python gen_extra.py out.sql 880`, default 70) | 3 administrators, 1 programmer, some `trusted`, 2 banned; random countries, pronouns, signup/last-online dates, social links |
+| 4 games: Super Mario World, Ocarina of Time, Portal, Minecraft: Java | real titles/release dates/platforms/categories; 3 categories each, new platforms (GameCube, 3DS, Wii), PAL region, series, forums |
+| ~984 runs by fictional players (82 at the default 70 users) | plausible (not real) times; mix of verified, 4 rejected (by an admin), 4 awaiting verification; multiple time types (Portal), video links (fake ids) |
+| Game staff, series moderators, role permissions | fictional staff, `since` 2019-01-01 |
+| Tickets (12) | open / in progress / closed, bug, run report, ban appeal; run reports reference only generated runs |
+| Memberships, holders, streams, follows, game follows | plan names and prices are approximations; channels are fictional |
+| Extra forum threads/replies, news (approved, pending, rejected) | |
+| Last-online dates for the 120 real users | only `last_online`; no other real-user data was changed |
+
+No generated runs, tickets or posts are attributed to real speedrun.com users.

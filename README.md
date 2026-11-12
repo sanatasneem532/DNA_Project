@@ -20,6 +20,7 @@ Note: the app has no password login. `USER.password_hash` is kept in the schema 
 # 1. database (from the folder containing schema.sql / populate.sql)
 mysql -u root -p < schema.sql
 mysql -u root -p < populate.sql
+mysql -u root -p < populate_extra.sql   # optional synthetic supplement (see DATA_SOURCES.md)
 
 # 2. python deps
 python -m venv venv && source venv/bin/activate      # Windows: venv\Scripts\activate
