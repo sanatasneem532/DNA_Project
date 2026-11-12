@@ -1,7 +1,8 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
 {% block title %}{{ 'Error' if message else 'Not found' }}{% endblock %}
 {% block content %}
-<h1>{{ 'Something went wrong' if message else 'Page not found' }}</h1>
-<p>{{ message or "That page or record does not exist. Check the link, or go back to the games list." }}</p>
-<p><a class="btn" href="{{ url_for('index') }}">Back to games</a></p>
+{% call ui.empty('Something went wrong' if message else 'Page not found', message or 'That page or record does not exist.') %}
+  <a class="btn" href="{{ url_for('index') }}">Back to games</a>
+{% endcall %}
 {% endblock %}

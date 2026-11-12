@@ -40,6 +40,22 @@ def fmt_d(value):
     return value.strftime("%d %b %Y") if value else "—"
 
 
+@app.template_filter("ago")
+def ago(value):
+    """datetime -> '3 days ago' (coarse, like speedrun.com's activity lists)."""
+    if not value:
+        return "—"
+    import datetime as _dt
+    secs = int((_dt.datetime.now() - value).total_seconds())
+    if secs < 0:
+        return "just now"
+    for unit, size in (("year", 31536000), ("month", 2592000), ("day", 86400), ("hour", 3600), ("minute", 60)):
+        if secs >= size:
+            n = secs // size
+            return f"{n} {unit}{'s' if n != 1 else ''} ago"
+    return "just now"
+
+
 def to_int(value, default=0):
     try:
         return int(value)
@@ -638,6 +654,41 @@ def forum(forum_id):
         ORDER BY COALESCE(MAX(rp.posted_at), t.created_at) DESC
         """, (forum_id, q, q))
     return render_template("forum.html", fm=fm, threads=threads, q=q)
+
+
+# CREATE: start a new thread (thread_code is x<next number>, computed inside a transaction)
+@app.route("/forum/<int:forum_id>/new", methods=["GET", "POST"])
+def new_thread(forum_id):
+    fm = db.fetch_one("SELECT forum_id, forum_name FROM FORUM WHERE forum_id = %s", (forum_id,))
+    if not fm:
+        abort(404)
+    if not g.user:
+        return need_login()
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        body = request.form.get("body", "").strip()
+        if not title or not body:
+            flash("A thread needs both a title and a first post.", "error")
+        elif len(title) > 250:
+            flash("The title can be at most 250 characters.", "error")
+        else:
+            try:
+                with db.transaction() as cur:
+                    cur.execute(
+                        """SELECT COALESCE(MAX(CAST(SUBSTRING(thread_code, 2) AS UNSIGNED)), 0) + 1 AS nxt
+                           FROM THREAD WHERE forum_id = %s FOR UPDATE""", (forum_id,))
+                    code = "x%d" % cur.fetchone()["nxt"]
+                    cur.execute(
+                        """INSERT INTO THREAD (forum_id, thread_code, title, starter_id)
+                           VALUES (%s, %s, %s, %s)""", (forum_id, code, title, g.user["user_id"]))
+                    cur.execute(
+                        """INSERT INTO REPLY (forum_id, thread_code, reply_no, body, author_id)
+                           VALUES (%s, %s, 1, %s, %s)""", (forum_id, code, body, g.user["user_id"]))
+                flash("Thread created.", "ok")
+                return redirect(url_for("thread", forum_id=forum_id, thread_code=code))
+            except pymysql.MySQLError as e:
+                flash(db.friendly_error(e), "error")
+    return render_template("new_thread.html", fm=fm)
 
 
 @app.route("/forum/<int:forum_id>/<thread_code>")

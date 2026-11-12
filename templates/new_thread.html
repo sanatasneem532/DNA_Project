@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+{% block title %}New thread{% endblock %}
+{% block content %}
+{{ ui.crumbs([('Forums', url_for('forums')), (fm.forum_name, url_for('forum', forum_id=fm.forum_id)), ('New thread', None)]) }}
+<div class="page-head"><h1>New thread</h1><p>Posting in {{ fm.forum_name }} as {{ g.user.username }}.</p></div>
+<form method="post" class="form">
+  <label class="field"><span>Title</span>
+    <input name="title" maxlength="250" required value="{{ request.form.get('title', '') }}" autofocus style="width:100%">
+  </label>
+  <label class="field"><span>First post</span>
+    <textarea name="body" rows="8" required>{{ request.form.get('body', '') }}</textarea>
+  </label>
+  <div class="row"><button class="btn primary">Create thread</button><a class="linkbtn" href="{{ url_for('forum', forum_id=fm.forum_id) }}">Cancel</a></div>
+</form>
+{% endblock %}

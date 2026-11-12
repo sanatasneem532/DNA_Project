@@ -1,47 +1,57 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
 {% block title %}Run #{{ run.run_id }}{% endblock %}
 {% block content %}
-<h1>{{ run.name_international }} · {{ run.category_name }}{% if run.level_name %} · {{ run.level_name }}{% endif %}</h1>
-<p>
-  <span class="badge status-{{ run.status }}">{{ run.status }}</span>
-  <a href="{{ url_for('game', abbr=run.abbreviation, cat=run.category_no) }}">View leaderboard</a>
-</p>
+{{ ui.crumbs([('Games', url_for('index')), (run.name_international, url_for('game', abbr=run.abbreviation, cat=run.category_no)), ('Run #' ~ run.run_id, None)]) }}
 
-<div class="split">
-  <section>
-    <h2>Times</h2>
-    <table><thead><tr><th>Type</th><th>Time</th></tr></thead><tbody>
-      {% for t in times %}<tr><td>{{ t.time_type }}{% if t.time_type == run.default_time_type %} <span class="badge">default</span>{% endif %}</td><td class="time">{{ t.total_ms|ms }}</td></tr>
-      {% else %}<tr><td colspan="2" class="empty">No time recorded.</td></tr>{% endfor %}
-    </tbody></table>
+<div class="page-head">
+  {% for t in times if t.time_type == run.default_time_type %}<div class="big-time">{{ t.total_ms|ms }}</div>{% endfor %}
+  <div class="meta" style="margin-top:12px">
+    <span>{{ run.name_international }}</span><span>{{ run.category_name }}{% if run.level_name %} · {{ run.level_name }}{% endif %}</span><span>{{ ui.status(run.status) }}</span>
+  </div>
+</div>
 
-    <h2>Players</h2>
-    {% for p in players %}<p><a href="{{ url_for('user_profile', username=p.username) }}">{{ p.username }}</a></p>{% endfor %}
-
-    {% if run.comment %}<h2>Comment</h2><p class="rules">{{ run.comment }}</p>{% endif %}
-    {% if run.status == 'rejected' %}<h2>Rejection reason</h2><p class="rules">{{ run.reject_reason }}</p>{% endif %}
-    {% if videos %}<h2>Video</h2>{% for v in videos %}<a class="ext" href="{{ v.link }}" target="_blank" rel="noopener">{{ v.link }}</a>{% endfor %}{% endif %}
+<div class="cols">
+  <section class="gap">
+    <div class="section"><h3>{{ 'Players' if players|length > 1 else 'Player' }}</h3>
+      <p style="margin-top:6px;font-size:1.1rem">{% for p in players %}{{ ui.player(p.username) }}{{ ' & ' if not loop.last }}{% endfor %}</p></div>
+    {% if times|length > 1 %}
+    <div class="section"><h3>Other times</h3>
+      <dl class="kv" style="margin-top:8px;grid-template-columns:200px 1fr">
+        {% for t in times if t.time_type != run.default_time_type %}<dt>{{ t.time_type|capitalize }}</dt><dd class="mono">{{ t.total_ms|ms }}</dd>{% endfor %}
+      </dl></div>
+    {% endif %}
+    {% if videos %}<div class="section"><h3>Video</h3>
+      {% for v in videos %}<a class="ext" style="margin-top:6px" href="{{ v.link }}" target="_blank" rel="noopener">{{ v.link }}</a>{% endfor %}</div>{% endif %}
+    {% if run.comment %}<div class="section"><h3>Comment</h3><p class="rules" style="margin-top:8px">{{ run.comment }}</p></div>{% endif %}
+    {% if run.status == 'rejected' %}<div class="section"><h3>Rejection reason</h3><p class="rules" style="margin-top:8px;border-color:var(--bad)">{{ run.reject_reason }}</p></div>{% endif %}
   </section>
 
-  <aside>
-    <dl class="facts">
-      <dt>Played on</dt><dd>{{ run.run_date|d }}</dd>
-      <dt>Platform</dt><dd>{{ run.platform_name }}{% if run.emulated %} (emulator){% endif %}</dd>
-      <dt>Region</dt><dd>{{ run.region_name or '—' }}</dd>
-      <dt>Submitted</dt><dd>{{ run.submitted_at|dt }} by <a href="{{ url_for('user_profile', username=run.submitter) }}">{{ run.submitter }}</a></dd>
-      <dt>Decided</dt><dd>{% if run.examiner %}{{ run.decided_on|dt }} by {{ run.examiner }}{% else %}Waiting for a moderator{% endif %}</dd>
-    </dl>
+  <aside class="aside">
+    <div>
+      <h3>Details</h3>
+      <dl class="kv">
+        <dt>Played</dt><dd>{{ run.run_date|d }}</dd>
+        <dt>Platform</dt><dd>{{ run.platform_name }}{% if run.emulated %} <span class="tag">emulator</span>{% endif %}</dd>
+        <dt>Region</dt><dd>{{ run.region_name or '—' }}</dd>
+        <dt>Submitted</dt><dd>{{ run.submitted_at|dt }}<br><span class="muted">by <a href="{{ url_for('user_profile', username=run.submitter) }}">{{ run.submitter }}</a></span></dd>
+        <dt>Decision</dt><dd>{% if run.examiner %}{{ run.decided_on|dt }}<br><span class="muted">by {{ run.examiner }}</span>{% else %}<span class="muted">Waiting</span>{% endif %}</dd>
+      </dl>
+    </div>
     {% if g.user and run.status == 'new' %}
+    <div>
       <h3>Moderator actions</h3>
-      <form method="post" action="{{ url_for('verify_run', run_id=run.run_id) }}"><button class="btn primary">Verify</button></form>
-      <form method="post" action="{{ url_for('reject_run', run_id=run.run_id) }}" class="stack">
-        <input name="reason" placeholder="Reason for rejecting" required>
-        <button class="btn danger">Reject</button>
-      </form>
-      {% if g.user.user_id == run.submitter_id %}
-      <form method="post" action="{{ url_for('delete_run', run_id=run.run_id) }}" data-confirm="Withdraw this run?">
-        <button class="btn">Withdraw my run</button></form>
-      {% endif %}
+      <div class="gap" style="margin-top:10px">
+        <form method="post" action="{{ url_for('verify_run', run_id=run.run_id) }}"><button class="btn primary">Verify run</button></form>
+        <form method="post" action="{{ url_for('reject_run', run_id=run.run_id) }}" class="form" style="gap:10px">
+          <input name="reason" placeholder="Reason for rejecting" required aria-label="Rejection reason">
+          <div><button class="btn danger">Reject</button></div>
+        </form>
+        {% if g.user.user_id == run.submitter_id %}
+        <form method="post" action="{{ url_for('delete_run', run_id=run.run_id) }}" data-confirm="Withdraw this run?"><button class="linkbtn danger">Withdraw my run</button></form>
+        {% endif %}
+      </div>
+    </div>
     {% endif %}
   </aside>
 </div>

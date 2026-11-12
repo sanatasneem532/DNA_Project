@@ -1,81 +1,81 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
 {% block title %}Submit a run{% endblock %}
 {% block content %}
-<h1>Submit a run</h1>
+{{ ui.crumbs([('Games', url_for('index')), ('Submit a run', None)]) }}
+<div class="page-head"><h1>Submit a run</h1><p>Moderators review every run before it reaches the leaderboard.</p></div>
 
-<form method="get" class="filters">
-  <label>Game
-    <select name="game" data-autosubmit>
+<form method="get" class="form" style="margin-bottom:40px">
+  <label class="field"><span>Game</span>
+    <select name="game" data-autosubmit style="height:40px;width:100%">
       <option value="">Choose a game…</option>
       {% for x in games %}<option value="{{ x.abbreviation }}" {{ 'selected' if x.abbreviation == abbr }}>{{ x.name_international }}</option>{% endfor %}
     </select>
   </label>
-  <noscript><button class="btn">Load game</button></noscript>
+  <noscript><div><button class="btn">Load game</button></div></noscript>
 </form>
 
 {% if abbr and not gm %}
-  <p class="empty">No game has the abbreviation “{{ abbr }}”. Pick one from the list.</p>
+  {{ ui.empty('Unknown game', 'No game has the abbreviation “' ~ abbr ~ '”.') }}
 {% elif gm %}
-<form method="post" class="stack narrow" id="run-form">
+<form method="post" class="form" id="run-form">
   <input type="hidden" name="game" value="{{ gm.abbreviation }}">
-  <p class="muted">Submitting as <strong>{{ g.user.username }}</strong>. {{ 'A video link is required. ' if gm.require_video }}{{ 'Emulator runs are not allowed. ' if not gm.emulators_allowed }}</p>
+  <p class="muted">{{ gm.name_international }} · as {{ g.user.username }}{% if gm.require_video %} · video required{% endif %}{% if not gm.emulators_allowed %} · no emulators{% endif %}</p>
 
-  <label>Category
-    <select name="category_no" id="category" required>
+  <label class="field"><span>Category</span>
+    <select name="category_no" id="category" required style="width:100%">
       {% for c in categories %}<option value="{{ c.category_no }}" data-type="{{ c.type }}" {{ 'selected' if request.form.get('category_no') == c.category_no|string }}>{{ c.name }} ({{ c.type }})</option>{% endfor %}
     </select>
   </label>
 
-  <label id="level-wrap" hidden>Level
-    <select name="level_no">
+  <label class="field" id="level-wrap" hidden><span>Level</span>
+    <select name="level_no" style="width:100%">
       <option value="">Choose a level…</option>
       {% for l in levels %}<option value="{{ l.level_no }}" {{ 'selected' if request.form.get('level_no') == l.level_no|string }}>{{ l.name }}</option>{% endfor %}
     </select>
   </label>
 
-  <label>Platform
-    <select name="platform_id" required>
+  <label class="field"><span>Platform</span>
+    <select name="platform_id" required style="width:100%">
       <option value="">Choose…</option>
       {% for p in platforms %}<option value="{{ p.platform_id }}" {{ 'selected' if request.form.get('platform_id') == p.platform_id|string }}>{{ p.platform_name }}</option>{% endfor %}
     </select>
   </label>
 
   {% if regions %}
-  <label>Region
-    <select name="region_id" required>
+  <label class="field"><span>Region</span>
+    <select name="region_id" required style="width:100%">
       <option value="">Choose…</option>
       {% for r in regions %}<option value="{{ r.region_id }}" {{ 'selected' if request.form.get('region_id') == r.region_id|string }}>{{ r.region_name }}</option>{% endfor %}
     </select>
   </label>
   {% endif %}
 
-  <label>Date played
-    <input type="date" name="run_date" required value="{{ request.form.get('run_date', '') }}"
-           {% if gm.release_date %}min="{{ gm.release_date }}"{% endif %}>
+  <label class="field"><span>Date played</span>
+    <input type="date" name="run_date" required value="{{ request.form.get('run_date', '') }}" {% if gm.release_date %}min="{{ gm.release_date }}"{% endif %}>
   </label>
 
-  <fieldset>
-    <legend>Time ({{ gm.default_time_type }})</legend>
+  <div class="field"><span>Time · {{ gm.default_time_type }}</span>
     <div class="timefields">
-      <label>h <input type="number" name="hours" min="0" max="99" value="{{ request.form.get('hours', 0) }}"></label>
-      <label>m <input type="number" name="minutes" min="0" max="59" value="{{ request.form.get('minutes', 0) }}"></label>
-      <label>s <input type="number" name="seconds" min="0" max="59" value="{{ request.form.get('seconds', 0) }}"></label>
-      <label>ms <input type="number" name="milliseconds" min="0" max="999" value="{{ request.form.get('milliseconds', 0) }}"></label>
+      <label class="field"><span>hours</span><input type="number" name="hours" min="0" max="99" value="{{ request.form.get('hours', 0) }}"></label>
+      <label class="field"><span>minutes</span><input type="number" name="minutes" min="0" max="59" value="{{ request.form.get('minutes', 0) }}"></label>
+      <label class="field"><span>seconds</span><input type="number" name="seconds" min="0" max="59" value="{{ request.form.get('seconds', 0) }}"></label>
+      <label class="field"><span>millis</span><input type="number" name="milliseconds" min="0" max="999" value="{{ request.form.get('milliseconds', 0) }}"></label>
     </div>
-  </fieldset>
+  </div>
 
-  <label>Video link {{ '' if gm.require_video else '(optional)' }}
-    <input type="url" name="video" placeholder="https://" value="{{ request.form.get('video', '') }}" {{ 'required' if gm.require_video }}>
+  <label class="field"><span>Video link{{ '' if gm.require_video else ' (optional)' }}</span>
+    <input type="url" name="video" placeholder="https://" value="{{ request.form.get('video', '') }}" {{ 'required' if gm.require_video }} style="width:100%">
   </label>
 
   {% if gm.emulators_allowed %}
   <label class="check"><input type="checkbox" name="emulated" {{ 'checked' if request.form.get('emulated') }}> Played on an emulator</label>
   {% endif %}
 
-  <label>Comment (optional)
+  <label class="field"><span>Comment (optional)</span>
     <textarea name="comment" rows="3">{{ request.form.get('comment', '') }}</textarea>
   </label>
-  <button class="btn primary">Submit run</button>
+  <div><button class="btn primary">Submit run</button></div>
 </form>
 {% endif %}
 {% endblock %}

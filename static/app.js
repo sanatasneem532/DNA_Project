@@ -20,4 +20,18 @@ document.addEventListener("DOMContentLoaded", () => {
     cat.addEventListener("change", sync);
     sync();
   }
+
+  // Theme toggle (remembered per browser; works without storage).
+  document.querySelectorAll("#theme-toggle").forEach(btn => btn.addEventListener("click", () => {
+    const root = document.documentElement;
+    const current = root.dataset.theme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    const next = current === "light" ? "dark" : "light";
+    root.dataset.theme = next;
+    try { localStorage.setItem("theme", next); } catch (e) { /* storage blocked */ }
+  }));
+
+  // Close the account menu when clicking elsewhere.
+  document.addEventListener("click", e => {
+    document.querySelectorAll("details.menu[open]").forEach(d => { if (!d.contains(e.target)) d.removeAttribute("open"); });
+  });
 });

@@ -1,56 +1,62 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
 {% block title %}Games{% endblock %}
 {% block content %}
-<div class="split">
+<div class="page-head"><h1>Games</h1></div>
+
+<div class="cols">
   <section>
-    <h1>Games</h1>
-    <form class="filters" method="get" action="{{ url_for('index') }}">
-      <input type="search" name="q" value="{{ q }}" placeholder="Search by name or abbreviation">
-      <select name="genre" data-autosubmit>
+    <form class="toolbar" method="get" action="{{ url_for('index') }}">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search games" aria-label="Search games">
+      <select name="genre" data-autosubmit aria-label="Genre">
         <option value="">Any genre</option>
         {% for x in genres %}<option value="{{ x.genre }}" {{ 'selected' if x.genre == genre }}>{{ x.genre }}</option>{% endfor %}
       </select>
-      <select name="platform" data-autosubmit>
+      <select name="platform" data-autosubmit aria-label="Platform">
         <option value="0">Any platform</option>
         {% for p in platforms %}<option value="{{ p.platform_id }}" {{ 'selected' if p.platform_id == platform_id }}>{{ p.platform_name }}</option>{% endfor %}
       </select>
-      <select name="sort" data-autosubmit>
+      <select name="sort" data-autosubmit aria-label="Sort by">
         <option value="name" {{ 'selected' if sort=='name' }}>A–Z</option>
         <option value="runs" {{ 'selected' if sort=='runs' }}>Most runs</option>
         <option value="followers" {{ 'selected' if sort=='followers' }}>Most followed</option>
-        <option value="newest" {{ 'selected' if sort=='newest' }}>Newest release</option>
+        <option value="newest" {{ 'selected' if sort=='newest' }}>Newest</option>
       </select>
-      <button class="btn primary">Search</button>
+      <noscript><button class="btn">Search</button></noscript>
+      {% if q or genre or platform_id %}<a class="linkbtn" href="{{ url_for('index') }}">Clear</a>{% endif %}
     </form>
 
     {% if games %}
-    <div class="gamelist">
+    <div class="list games-list">
       {% for gm in games %}
-      <a class="gamerow" href="{{ url_for('game', abbr=gm.abbreviation) }}">
-        <span class="gname">{{ gm.name_international }}
-          {% if gm.name_japanese %}<small class="muted">{{ gm.name_japanese }}</small>{% endif %}</span>
-        <span class="muted">{{ gm.genres or 'No genre listed' }}</span>
-        <span class="num">{{ gm.verified_runs }} runs</span>
-        <span class="num">{{ gm.followers }} followers</span>
+      <a href="{{ url_for('game', abbr=gm.abbreviation) }}">
+        <span><span class="title">{{ gm.name_international }}</span>{% if gm.release_date %}<span class="sub">{{ gm.release_date.year }}</span>{% endif %}</span>
+        <span class="right hide-sm" style="text-align:left">{{ gm.genres or '' }}</span>
+        <span class="right">{{ gm.verified_runs }} runs</span>
+        <span class="right hide-sm">{{ gm.followers }} followers</span>
       </a>
       {% endfor %}
     </div>
     {% else %}
-      <p class="empty">No games match those filters. Clear the genre or platform, or try a shorter search.</p>
+      {% call ui.empty('No games match', 'Clear the filters or try a shorter search.') %}
+        <a class="btn" href="{{ url_for('index') }}">Reset filters</a>
+      {% endcall %}
     {% endif %}
   </section>
 
-  <aside>
-    <h2>Latest verified runs</h2>
-    {% for r in latest %}
-      <a class="run-mini" href="{{ url_for('run_detail', run_id=r.run_id) }}">
-        <span class="time">{{ r.total_ms|ms }}</span>
-        <span>{{ r.name_international }} · {{ r.category_name }}</span>
-        <small class="muted">by {{ r.players }}</small>
-      </a>
-    {% else %}
-      <p class="empty">No verified runs yet.</p>
-    {% endfor %}
+  <aside class="aside">
+    <div>
+      <h3>Latest verified runs</h3>
+      <div class="list">
+        {% for r in latest %}
+        <a href="{{ url_for('run_detail', run_id=r.run_id) }}" style="grid-template-columns:1fr">
+          <span class="time" style="font-weight:500">{{ r.total_ms|ms }}</span>
+          <span class="sub" style="color:var(--ink-2)">{{ r.name_international }} · {{ r.category_name }}</span>
+          <span class="sub">{{ r.players }}</span>
+        </a>
+        {% else %}<div class="item muted">No verified runs yet.</div>{% endfor %}
+      </div>
+    </div>
   </aside>
 </div>
 {% endblock %}

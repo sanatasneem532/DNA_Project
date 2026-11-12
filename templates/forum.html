@@ -1,14 +1,30 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
 {% block title %}{{ fm.forum_name }}{% endblock %}
 {% block content %}
-<h1>{{ fm.forum_name }}</h1>
-<form class="filters" method="get"><input type="search" name="q" value="{{ q }}" placeholder="Search thread titles"><button class="btn primary">Search</button></form>
+{{ ui.crumbs([('Forums', url_for('forums')), (fm.forum_name, None)]) }}
+<div class="page-head">
+  <h1>{{ fm.forum_name }}</h1>
+  <div class="row"><a class="btn primary" href="{{ url_for('new_thread', forum_id=fm.forum_id) }}">New thread</a></div>
+</div>
+<form class="toolbar" method="get">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search thread titles" aria-label="Search thread titles">
+  <button class="btn">Search</button>
+  {% if q %}<a class="linkbtn" href="{{ url_for('forum', forum_id=fm.forum_id) }}">Clear</a>{% endif %}
+</form>
 {% if threads %}
-<div class="scroll"><table>
-  <thead><tr><th>Thread</th><th>Started by</th><th>Replies</th><th>Last activity</th></tr></thead><tbody>
+<div class="list thread-list">
   {% for t in threads %}
-    <tr><td><a href="{{ url_for('thread', forum_id=fm.forum_id, thread_code=t.thread_code) }}">{{ t.title }}</a>{% if t.is_locked %} <span class="badge">locked</span>{% endif %}</td>
-        <td>{{ t.starter }}</td><td class="num">{{ t.replies }}</td><td class="muted">{{ (t.last_reply or t.created_at)|dt }}</td></tr>
-  {% endfor %}</tbody></table></div>
-{% else %}<p class="empty">No threads {{ 'match that title' if q else 'here yet' }}.</p>{% endif %}
+    <a href="{{ url_for('thread', forum_id=fm.forum_id, thread_code=t.thread_code) }}">
+      <span><span class="title">{{ t.title }}</span><span class="sub">{{ t.starter }}{% if t.is_locked %} · locked{% endif %}</span></span>
+      <span class="right">{{ t.replies }}</span>
+      <span class="right hide-sm">{{ (t.last_reply or t.created_at)|ago }}</span>
+    </a>
+  {% endfor %}
+</div>
+{% else %}
+  {% call ui.empty('No threads ' ~ ('match that title' if q else 'here yet')) %}
+    <a class="btn" href="{{ url_for('new_thread', forum_id=fm.forum_id) }}">Start a thread</a>
+  {% endcall %}
+{% endif %}
 {% endblock %}

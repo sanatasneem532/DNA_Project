@@ -3,15 +3,15 @@
 Web app modelled on **speedrun.com** (game leaderboards, run submission and verification, player profiles, forums, news, tickets).
 
 ## Stack
-- **Paradigm / DBMS:** Relational, MySQL 8.0+ (fill in your exact version: `mysql --version`)
-- **Backend:** Python 3 + Flask, PyMySQL driver (raw parameterised SQL only, no ORM)
-- **Frontend:** Jinja server-side templates, plain HTML / CSS / JavaScript
+- **Paradigm / DBMS:** Relational, MySQL 8.4.3 (schema needs 8.0+; tested end to end on 8.4.3)
+- **Backend:** Python 3.13 + Flask 3.x, PyMySQL 1.1 driver (raw parameterised SQL only, no ORM)
+- **Frontend:** Jinja server-side templates, hand-written CSS design system (dark/light theme), plain JavaScript
 
 ## Design Changes
-Phase 2 team: `<number>`   Phase 3 team: `<number>`
+Phase 2 team: `<number>`   Phase 3 team: `<number>`   <!-- TODO: fill in before submitting -->
 
-Fill in every change you made to the Phase 3 schema, one line each with a reason. Example format:
-- *(none / e.g.)* Added `X` column to `Y` — needed for feature Z.
+- None to the table/column structure of the Phase 3 schema; `schema.sql` is used as received.
+- `populate.sql` is in two parts: (1) data collected from speedrun.com (6 games, 104 runs, 120 users), (2) a generated supplement (40 more real-titled games, ~6,950 runs, 4,880 fictional users, staff, tickets, memberships, streams, follows, forum/news activity; 5,000 users in total) so every feature has data to demonstrate. See `DATA_SOURCES.md`.
 
 Note: the app has no password login. `USER.password_hash` is kept in the schema but the demo uses "Act as a user" (pick any user) to avoid storing real credentials.
 
@@ -20,7 +20,7 @@ Note: the app has no password login. `USER.password_hash` is kept in the schema 
 # 1. database (from the folder containing schema.sql / populate.sql)
 mysql -u root -p < schema.sql
 mysql -u root -p < populate.sql
-mysql -u root -p < populate_extra.sql   # optional synthetic supplement (see DATA_SOURCES.md)
+
 
 # 2. python deps
 python -m venv venv && source venv/bin/activate      # Windows: venv\Scripts\activate
@@ -55,3 +55,4 @@ Reads = R, writes = W. Click **Act as a user** (top right) before any write.
 16. **Delete a reply (W – DELETE)** – thread page, "Delete" on your own reply.
 17. **Withdraw a pending run (W – DELETE)** – run page of your own run while status is `new`.
 18. **Follow / unfollow a game or a player (W – CREATE / DELETE)** – game page and profile page buttons. Following yourself is blocked by a trigger.
+19. **Start a forum thread (W – CREATE)** – forum page, "New thread" button (`/forum/<id>/new`). One transaction inserts the THREAD (code `x<next number>`) and its first REPLY. Banned users are blocked by a trigger.

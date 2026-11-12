@@ -34,20 +34,20 @@ Users whose names contain "." (e.g. `bobo.`, `Phoenix.`) because the schema's us
 
 ---
 
-# populate_extra.sql (synthetic supplement)
+# populate.sql, part 2 (synthetic supplement)
 
-Run after `populate.sql`: `mysql -u root -p < populate_extra.sql`. Regenerate with `python gen_extra.py populate_extra.sql` (fixed seed, deterministic).
-**All of this is generated, not scraped**, and tested on MySQL 8.4.3 with the triggers active.
+Appended to `populate.sql` after the scraped part. Regenerate with `python gen_extra.py extra.sql` (fixed seed, deterministic; optional args: number of new users, run scale) and append the output.
+**All of this is generated, not scraped.** Tested on MySQL 8.4.3 with every trigger active (loads in about 8 s).
 
 | Added | Notes |
 |---|---|
-| 880 fictional users (ids 121-1000; `python gen_extra.py out.sql 880`, default 70) | 3 administrators, 1 programmer, some `trusted`, 2 banned; random countries, pronouns, signup/last-online dates, social links |
-| 4 games: Super Mario World, Ocarina of Time, Portal, Minecraft: Java | real titles/release dates/platforms/categories; 3 categories each, new platforms (GameCube, 3DS, Wii), PAL region, series, forums |
-| ~984 runs by fictional players (82 at the default 70 users) | plausible (not real) times; mix of verified, 4 rejected (by an admin), 4 awaiting verification; multiple time types (Portal), video links (fake ids) |
-| Game staff, series moderators, role permissions | fictional staff, `since` 2019-01-01 |
-| Tickets (12) | open / in progress / closed, bug, run report, ban appeal; run reports reference only generated runs |
-| Memberships, holders, streams, follows, game follows | plan names and prices are approximations; channels are fictional |
-| Extra forum threads/replies, news (approved, pending, rejected) | |
-| Last-online dates for the 120 real users | only `last_online`; no other real-user data was changed |
+| 4,880 fictional users (ids 121-5000) | 6 administrators, 1 programmer, some `trusted`, 12 banned; random countries, pronouns, signup / last-online dates, social links |
+| 40 more games (46 total) | real titles, release dates, platforms, genres, developers and categories (e.g. Super Mario Bros., Super Metroid, Hollow Knight, Elden Ring, Final Fantasy VII, Mario Kart 64/8 Deluxe with per-track levels); 13 new platforms, PAL region, ~20 series, one forum per game |
+| ~6,950 runs by fictional players | plausible (not real) times with realistic spread; players with older slower personal bests; ~80 awaiting a decision, ~40 rejected by an admin; second time types (RTA + in-game); video links (fake ids); emulator runs on retro platforms |
+| 404 game staff + series moderators, role permissions | fictional staff |
+| 152 tickets | open / in progress / closed bug reports, run reports (generated runs only) and ban appeals |
+| 450 memberships held (3 plans), 78 streams, 29k follows, 20k game follows, 488 featured runs | plan names/prices approximate; channels fictional |
+| ~420 threads, ~2,250 replies, 46 news posts | approved by administrators, plus pending / rejected examples |
+| Last-online dates for the 120 real users | only `last_online`; nothing else about real users was changed |
 
 No generated runs, tickets or posts are attributed to real speedrun.com users.

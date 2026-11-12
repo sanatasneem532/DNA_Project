@@ -1,19 +1,19 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
 {% block title %}News{% endblock %}
 {% block content %}
-<h1>News</h1>
-<form class="filters" method="get">
-  <select name="topic" data-autosubmit>
-    <option value="">All topics</option>
-    {% for t in topics %}<option value="{{ t.topic }}" {{ 'selected' if t.topic == topic }}>{{ t.topic }}</option>{% endfor %}
-  </select>
-</form>
+<div class="page-head"><h1>News</h1></div>
+<nav class="tabs" aria-label="Topics">
+  <a {% if not topic %}aria-current="page"{% endif %} href="{{ url_for('news') }}">All</a>
+  {% for t in topics %}<a {% if t.topic == topic %}aria-current="page"{% endif %} href="{{ url_for('news', topic=t.topic) }}">{{ t.topic }}</a>{% endfor %}
+</nav>
+<div style="max-width:720px">
 {% for p in posts %}
-<article class="post">
+<article class="article">
+  <div class="meta" style="margin:0"><span>{{ p.approved_at|d }}</span><span>{{ p.author }}</span>{% if p.game_name %}<span><a href="{{ url_for('game', abbr=p.abbreviation) }}">{{ p.game_name }}</a></span>{% endif %}</div>
   <h2>{{ p.title }}</h2>
-  <p class="muted">By {{ p.author }} · {{ p.approved_at|dt }}{% if p.game_name %} · <a href="{{ url_for('game', abbr=p.abbreviation) }}">{{ p.game_name }}</a>{% endif %}</p>
-  <p>{{ p.body }}</p>
-  {% if p.topics %}<p>{% for t in p.topics.split(',') %}<a class="badge" href="{{ url_for('news', topic=t) }}">{{ t }}</a> {% endfor %}</p>{% endif %}
+  <p class="body">{{ p.body }}</p>
 </article>
-{% else %}<p class="empty">No approved news {{ 'under that topic' if topic }}.</p>{% endfor %}
+{% else %}{{ ui.empty('No approved news' ~ (' under that topic' if topic else '')) }}{% endfor %}
+</div>
 {% endblock %}

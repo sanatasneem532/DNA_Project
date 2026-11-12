@@ -1,14 +1,19 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
 {% block title %}Players{% endblock %}
 {% block content %}
-<h1>Players</h1>
-<form class="filters" method="get"><input type="search" name="q" value="{{ q }}" placeholder="Search usernames"><button class="btn primary">Search</button></form>
+<div class="page-head"><h1>Players</h1></div>
+<form class="toolbar" method="get">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search usernames" aria-label="Search usernames">
+  <button class="btn">Search</button>
+  {% if q %}<a class="linkbtn" href="{{ url_for('players') }}">Clear</a>{% endif %}
+</form>
 {% if rows %}
-<div class="scroll"><table>
-  <thead><tr><th>Player</th><th>Role</th><th>Country</th><th>Verified runs</th><th>Joined</th></tr></thead><tbody>
+<div class="table-wrap"><table>
+  <thead><tr><th>Player</th><th>Role</th><th>Country</th><th class="num">Verified runs</th><th>Joined</th></tr></thead><tbody>
   {% for r in rows %}
-    <tr><td><a href="{{ url_for('user_profile', username=r.username) }}">{{ r.username }}</a>{% if r.banned_on %} <span class="badge status-rejected">banned</span>{% endif %}</td>
-        <td>{{ r.site_role }}</td><td>{{ r.country or '—' }}</td><td class="num">{{ r.verified_runs }}</td><td class="muted">{{ r.signup_date|d }}</td></tr>
+    <tr><td>{{ ui.player(r.username) }}{% if r.banned_on %} <span class="tag bad">banned</span>{% endif %}</td>
+        <td class="muted">{{ r.site_role }}</td><td>{{ r.country or '—' }}</td><td class="num">{{ r.verified_runs }}</td><td class="muted nowrap">{{ r.signup_date|d }}</td></tr>
   {% endfor %}</tbody></table></div>
-{% else %}<p class="empty">No player has that name. Check the spelling or search for part of it.</p>{% endif %}
+{% else %}{{ ui.empty('No player has that name', 'Check the spelling or search for part of it.') }}{% endif %}
 {% endblock %}

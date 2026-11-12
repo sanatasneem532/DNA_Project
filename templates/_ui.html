@@ -1,0 +1,21 @@
+{# Shared pieces. Import with:  {% import "_ui.html" as ui with context %} #}
+
+{% macro player(name) -%}<a href="{{ url_for('user_profile', username=name) }}">{{ name }}</a>{%- endmacro %}
+
+{% macro players(csv) -%}
+{%- for n in csv.split(', ') -%}{{ player(n) }}{% if not loop.last %} &amp; {% endif %}{%- endfor -%}
+{%- endmacro %}
+
+{% macro status(s) -%}<span class="st {{ s|replace(' ', '-') }}">{{ s }}</span>{%- endmacro %}
+
+{% macro crumbs(items) -%}
+<nav class="crumbs" aria-label="Breadcrumb">
+  {%- for label, href in items -%}
+    {%- if href %}<a href="{{ href }}">{{ label }}</a><span class="sep">/</span>{% else %}<span aria-current="page">{{ label }}</span>{% endif -%}
+  {%- endfor -%}
+</nav>
+{%- endmacro %}
+
+{% macro empty(title, text='') -%}
+<div class="empty"><strong>{{ title }}</strong>{% if text %}{{ text }}{% endif %}{{ caller() if caller else '' }}</div>
+{%- endmacro %}

@@ -1,8 +1,12 @@
-"""Generates populate_extra.sql (synthetic, deterministic). Usage: python gen_extra.py <out.sql>"""
+"""Generates the synthetic part of populate.sql (deterministic).
+Usage: python gen_extra.py <out.sql> [new_users=4880] [run_scale=1.0]
+Real titles/categories/platforms; fictional users; plausible (not real) times."""
 import random, sys, datetime as dt
 
-random.seed(20261112)
+random.seed(20261113)
 OUT = sys.argv[1]
+N_NEW = int(sys.argv[2]) if len(sys.argv) > 2 else 4880
+RSCALE = float(sys.argv[3]) if len(sys.argv) > 3 else 1.0
 L = []
 def w(s=""): L.append(s)
 def q(v):
@@ -10,67 +14,58 @@ def q(v):
     if isinstance(v, bool): return "1" if v else "0"
     if isinstance(v, (int, float)): return str(v)
     return "'" + str(v).replace("\\", "\\\\").replace("'", "''") + "'"
-def ins(table, cols, rows):
-    if not rows: return
-    w(f"INSERT INTO {table} ({', '.join(cols)}) VALUES")
-    w(",\n".join("  (" + ", ".join(q(x) for x in r) + ")" for r in rows) + ";")
+def ins(table, cols, rows, chunk=400):
+    rows = list(rows)
+    for i in range(0, len(rows), chunk):
+        part = rows[i:i + chunk]
+        w(f"INSERT INTO {table} ({', '.join(cols)}) VALUES")
+        w(",\n".join("  (" + ", ".join(q(x) for x in r) + ")" for r in part) + ";")
 
-# ---------------------------------------------------------------- generated users
-ADJ = "Swift Pixel Cosmic Frozen Turbo Silent Rapid Golden Crimson Lunar Neon Atomic Misty Rusty Bold Quick Sleepy Lucky Hyper Mellow Cobalt Amber Velvet Stormy Dizzy".split()
-NOUN = "Fox Panda Falcon Otter Wizard Ninja Comet Badger Raven Tiger Lynx Gecko Moose Pilot Knight Pirate Robot Yeti Cricket Walrus Heron Goblin Dragon Beetle Koala".split()
-COUNTRIES = ["United States","United States","United States","Germany","Japan","Canada","United Kingdom","Brazil","France","Australia","Netherlands","Sweden","Poland","Spain","Mexico","South Korea","Finland","Norway","Italy","India"]
-SUBREG = {"United States":["California","Texas","New York","Washington","Ohio"],"Canada":["Ontario","Quebec"],"Germany":["Bavaria","Berlin"],"United Kingdom":["England","Scotland"]}
-PRON = [None]*6 + ["he/him","she/her","they/them","he/they","she/they"]
+RT, RTNL, IGT = "real time", "real time without loads", "in-game time"
+
+# ---------------------------------------------------------------- users
+ADJ = ("Swift Pixel Cosmic Frozen Turbo Silent Rapid Golden Crimson Lunar Neon Atomic Misty Rusty Bold Quick Sleepy Lucky Hyper Mellow Cobalt Amber Velvet "
+       "Stormy Dizzy Ghost Solar Polar Electric Wild Brave Calm Clever Fuzzy Jolly Nimble Plucky Quiet Sneaky Tiny Vivid Witty Zesty Iron Copper Silver Mystic Hazy").split()
+NOUN = ("Fox Panda Falcon Otter Wizard Ninja Comet Badger Raven Tiger Lynx Gecko Moose Pilot Knight Pirate Robot Yeti Cricket Walrus Heron Goblin Dragon Beetle Koala "
+        "Owl Wolf Bison Crab Drifter Ranger Sprite Titan Viper Wombat Falconer Gopher Lemur Marten Newt Osprey Puffin Quokka Rabbit Stoat Toad").split()
+COUNTRIES = (["United States"] * 6 + ["Germany"] * 2 + ["Japan"] * 2 + ["Canada", "United Kingdom", "United Kingdom", "Brazil", "France", "Australia", "Netherlands", "Sweden",
+             "Poland", "Spain", "Mexico", "South Korea", "Finland", "Norway", "Italy", "India", "Denmark", "Argentina", "Chile", "Ireland", "New Zealand", "Austria"])
+SUBREG = {"United States": ["California", "Texas", "New York", "Washington", "Ohio", "Florida", "Illinois"], "Canada": ["Ontario", "Quebec", "British Columbia"],
+          "Germany": ["Bavaria", "Berlin", "Hesse"], "United Kingdom": ["England", "Scotland", "Wales"], "Australia": ["New South Wales", "Victoria"]}
+PRON = [None] * 6 + ["he/him", "she/her", "they/them", "he/they", "she/they"]
 
 FIRST_NEW_UID = 121
-N_NEW = int(sys.argv[2]) if len(sys.argv) > 2 else 70
-SCALE = max(1, N_NEW // 70)
-names = set()
-users = []  # (uid, name, role, country, sub, pron, signup, last_online, banned)
-uid = FIRST_NEW_UID
-special = {  # uid -> (name, role)
-    121: ("SpeedSiteAdmin", "administrator"),
-    122: ("RunDeskAdmin", "administrator"),
-    123: ("TicketWardenAdmin", "administrator"),
-    124: ("BoardCoder", "programmer"),
-}
-BANNED = {169, 170}
-while len(users) < N_NEW:
-    if uid in special:
-        name, role = special[uid]
+LAST_UID = FIRST_NEW_UID + N_NEW - 1
+ADMIN_IDS = list(range(121, 127))
+special = {121: ("SpeedSiteAdmin", "administrator"), 122: ("RunDeskAdmin", "administrator"), 123: ("TicketWardenAdmin", "administrator"),
+           124: ("LeaderboardAdmin", "administrator"), 125: ("ForumAdminOne", "administrator"), 126: ("ModDeskAdmin", "administrator"), 127: ("BoardCoder", "programmer")}
+BANNED = set(range(LAST_UID - 11, LAST_UID + 1))
+names = set(); users = []
+for uid in range(FIRST_NEW_UID, LAST_UID + 1):
+    if uid in special: name, role = special[uid]
     else:
         while True:
-            name = random.choice(ADJ) + random.choice(NOUN) + str(random.choice([random.randint(1, 99), ""]) )
-            if name.lower() not in names: break
-        role = "trusted" if uid % 11 == 0 else "user"
+            name = random.choice(ADJ) + random.choice(NOUN) + random.choice([str(random.randint(1, 999)), str(random.randint(1, 99)), "", "_" + str(random.randint(1, 99))])
+            if name.lower() not in names and len(name) <= 30: break
+        role = "trusted" if uid % 13 == 0 else "user"
     names.add(name.lower())
     c = random.choice(COUNTRIES)
     sub = random.choice(SUBREG[c]) if c in SUBREG and random.random() < .5 else None
-    signup = dt.date(2016, 1, 1) + dt.timedelta(days=random.randint(0, 3400))
-    last = dt.datetime(2026, 9, 1) + dt.timedelta(minutes=random.randint(0, 70 * 1440))
-    if uid in BANNED: last = dt.datetime(2026, 3, 1) + dt.timedelta(minutes=random.randint(0, 40000))
-    banned = dt.datetime(2026, 4, 2, 9, 30) + dt.timedelta(days=uid - 169) if uid in BANNED else None
+    signup = dt.date(2015, 1, 1) + dt.timedelta(days=random.randint(0, 3900))
+    last = dt.datetime(2026, 8, 1) + dt.timedelta(minutes=random.randint(0, 100 * 1440))
+    banned = None
+    if uid in BANNED:
+        last = dt.datetime(2026, 2, 1) + dt.timedelta(minutes=random.randint(0, 60000)); banned = dt.datetime(2026, 4, 2, 9, 30) + dt.timedelta(days=uid % 40)
     users.append((uid, name, role, c, sub, random.choice(PRON), signup, last, banned))
-    uid += 1
-LAST_UID = uid - 1
-ADMINS = [121, 122, 123]
-POOL = [u[0] for u in users if u[0] not in BANNED and u[0] not in (121, 122, 123, 124)]  # regular players/mods
+UNAME = {u[0]: u[1] for u in users}
+POOL = [u[0] for u in users if u[0] not in BANNED and u[0] not in special]
 
 w("""-- =====================================================================
--- populate_extra.sql  -  SYNTHETIC supplement to populate.sql (Phase 4)
--- Run AFTER schema.sql and populate.sql:   mysql -u root -p < populate_extra.sql
---
--- Everything here is GENERATED (deterministic seed), not scraped. It models how the live
--- speedrun.com looks: more games + leaderboards, tickets, supporter memberships, live streams,
--- user/game follows, series moderators, role permissions, extra forum/news activity, ban appeals.
--- New usernames are fictional (user_id 121+). No real person is given generated runs/tickets.
--- Times, dates and counts are plausible approximations, NOT real world records.
--- =====================================================================
-USE speedrun_db;
-SET NAMES utf8mb4;
-""")
-
-# ---------------------------------------------------------------- users
+-- SYNTHETIC SUPPLEMENT (generated by gen_extra.py; see DATA_SOURCES.md)
+-- More games with leaderboards, fictional users, tickets, memberships, streams, follows,
+-- staff, forum threads and news. Real titles/categories/platforms; fictional people;
+-- times and counts are plausible approximations, NOT real records.
+-- =====================================================================""")
 w("-- ---------- generated users (fictional)")
 ins("`USER`", ["user_id","username","email","password_hash","signup_date","last_online","site_role","pronouns","country","subregion","banned_on"],
     [(u[0], u[1], u[1].lower() + "@example.invalid", "!disabled-placeholder", str(u[6]), str(u[7]), u[2], u[5], u[3], u[4], str(u[8]) if u[8] else None) for u in users])
@@ -78,250 +73,327 @@ ins("USER_SOCIAL_LINK", ["user_id","link"],
     [(u[0], f"https://www.twitch.tv/{u[1].lower()}") for u in users if u[0] % 3 == 0 and u[0] not in BANNED] +
     [(u[0], f"https://www.youtube.com/@{u[1].lower()}") for u in users if u[0] % 5 == 0 and u[0] not in BANNED] +
     [(u[0], f"https://twitter.com/{u[1].lower()}") for u in users if u[0] % 7 == 0 and u[0] not in BANNED])
-# lightly vary last_online for the real users too (the site shows "last seen"); signup stays placeholder
 w("UPDATE `USER` SET last_online = TIMESTAMP('2026-10-01 00:00:00') + INTERVAL ((user_id * 7919) % 40) DAY + INTERVAL ((user_id * 104729) % 1440) MINUTE WHERE user_id <= 120;")
 
 # ---------------------------------------------------------------- lookups
+PLAT = {"N64": 1, "PC": 2, "SNES": 3, "GBA": 4, "Web": 5, "PS4": 6, "XboxOne": 7, "Switch": 8, "WiiVC": 9, "WiiUVC": 10,
+        "GameCube": 11, "3DS": 12, "Wii": 13, "NES": 14, "Genesis": 15, "PS1": 16, "PS2": 17, "PS3": 18, "Xbox 360": 19,
+        "DS": 20, "Game Boy": 21, "Dreamcast": 22, "PS5": 23, "Xbox Series X": 24, "Wii U": 25, "Xbox": 26}
+NEW_PLAT = [("NES",1983),("Genesis",1988),("PS1",1994),("PS2",2000),("PS3",2006),("Xbox 360",2005),("DS",2004),("Game Boy",1989),("Dreamcast",1998),("PS5",2020),("Xbox Series X",2020),("Wii U",2012),("Xbox",2001)]
+RETRO = {"N64", "SNES", "GBA", "NES", "Genesis", "PS1", "PS2", "Game Boy", "GameCube", "Dreamcast", "DS", "Xbox", "Wii", "3DS"}
 w("\n-- ---------- new platforms / regions / series / forums")
-ins("PLATFORM", ["platform_id","platform_name","release_year"], [(11,"GameCube",2001),(12,"3DS",2011),(13,"Wii",2006)])
+ins("PLATFORM", ["platform_id","platform_name","release_year"], [(11,"GameCube",2001),(12,"3DS",2011),(13,"Wii",2006)] + [(14 + i, n, y) for i, (n, y) in enumerate(NEW_PLAT)])
 ins("REGION", ["region_id","region_name"], [(3,"PAL")])
-ins("SERIES", ["series_id","series_name"], [(5,"The Legend of Zelda Series"),(6,"Portal Series"),(7,"Minecraft Series")])
-ins("FORUM", ["forum_id","forum_name"], [(7,"Super Mario World Forums"),(8,"The Legend of Zelda: Ocarina of Time Forums"),(9,"Portal Forums"),(10,"Minecraft: Java Edition Forums")])
+
+# (abbr, name, release, genres, devs, plats, series, default_tt, second_tt, req_video, emu, pop(1-3), regions?, cats[(name, mult)], any_secs, ms, jp)
+R = True
+GAMES = [
+ ("smw","Super Mario World","1990-11-21",["Platformer"],["Nintendo EAD"],["SNES","WiiVC","Switch"],"Super Mario Series",RT,None,0,1,3,False,[("Any%",1),("96 Exit",4.6),("11 Exit",2.8)],560,1,"スーパーマリオワールド"),
+ ("oot","The Legend of Zelda: Ocarina of Time","1998-11-21",["Action-adventure"],["Nintendo EAD"],["N64","GameCube","Wii","WiiVC"],"The Legend of Zelda Series",RT,None,1,1,3,True,[("Any%",1),("100%",8),("Glitchless Any%",7)],1620,0,"ゼルダの伝説 時のオカリナ"),
+ ("portal","Portal","2007-10-10",["Puzzle","First-person"],["Valve"],["PC","Switch"],"Portal Series",RTNL,RT,0,0,3,False,[("Inbounds",1),("Out of Bounds",1.3),("Glitchless",1.8)],415,1,None),
+ ("mcj","Minecraft: Java Edition","2011-11-18",["Sandbox","Survival"],["Mojang Studios"],["PC"],"Minecraft Series",RT,None,1,0,3,False,[("Any% Random Seed Glitchless",1),("Any% Set Seed Glitchless",.8),("All Advancements",27)],720,1,None),
+ ("smb","Super Mario Bros.","1985-09-13",["Platformer"],["Nintendo R&D4"],["NES","WiiVC","Switch"],"Super Mario Series",RT,None,0,1,3,True,[("Any%",1),("Warpless",4),("Minus World",1.4)],300,1,"スーパーマリオブラザーズ"),
+ ("supermetroid","Super Metroid","1994-03-19",["Action-adventure"],["Nintendo R&D1"],["SNES","WiiVC","Switch"],"Metroid Series",RT,None,0,1,3,False,[("Any%",1),("100%",1.8),("Low%",1.25)],3000,0,"スーパーメトロイド"),
+ ("sonic1","Sonic the Hedgehog","1991-06-23",["Platformer"],["Sonic Team"],["Genesis","PC","Switch"],"Sonic Series",RT,None,0,1,2,False,[("Any%",1),("All Emeralds",1.7)],1450,1,None),
+ ("botw","The Legend of Zelda: Breath of the Wild","2017-03-03",["Action-adventure"],["Nintendo EPD"],["Switch","Wii U"],"The Legend of Zelda Series",RT,None,1,0,3,False,[("Any%",1),("All Dungeons",4),("100%",20)],1700,0,None),
+ ("hollowknight","Hollow Knight","2017-02-24",["Metroidvania"],["Team Cherry"],["PC","Switch","PS4","XboxOne"],None,IGT,RT,0,0,3,False,[("Any%",1),("True Ending",1.9),("112% APB",5)],4200,1,None),
+ ("hades","Hades","2020-09-17",["Roguelike"],["Supergiant Games"],["PC","Switch","PS4","XboxOne"],None,RT,None,0,0,2,False,[("Fresh File Any%",1),("Heat 16",1.5),("32 Heat",3.5)],1500,1,None),
+ ("cuphead","Cuphead","2017-09-29",["Run and gun"],["Studio MDHR"],["PC","XboxOne","Switch","PS4"],None,RT,None,0,0,2,False,[("Any% Regular",1),("Any% Expert",1.25),("All Bosses",1.4)],2400,1,None),
+ ("undertale","Undertale","2015-09-15",["RPG"],["tobyfox"],["PC","Switch","PS4"],None,RT,None,0,0,3,False,[("Neutral",1),("True Pacifist",2.3),("Genocide",1.9)],1100,0,None),
+ ("doom","Doom","1993-12-10",["First-person shooter"],["id Software"],["PC","Switch","PS4"],"Doom Series",RT,None,0,1,2,False,[("Ultra-Violence",1),("Nightmare 100%",2.4)],1100,0,None),
+ ("hl2","Half-Life 2","2004-11-16",["First-person shooter"],["Valve"],["PC","Xbox","Xbox 360"],"Half-Life Series",RT,None,0,1,2,False,[("Any%",1),("Glitchless",1.35)],4400,1,None),
+ ("portal2","Portal 2","2011-04-18",["Puzzle","First-person"],["Valve"],["PC","PS3","Xbox 360"],"Portal Series",RTNL,RT,0,1,3,False,[("Singleplayer",1),("Glitchless",1.5),("Out of Bounds",.9)],4000,1,None),
+ ("megaman2","Mega Man 2","1988-12-24",["Platformer"],["Capcom"],["NES","WiiVC","Switch"],"Mega Man Series",RT,None,0,1,2,True,[("Any%",1),("Normal Difficulty",1.15)],1380,1,"ロックマン2"),
+ ("metroidprime","Metroid Prime","2002-11-17",["First-person adventure"],["Retro Studios"],["GameCube","Wii","Switch"],"Metroid Series",RT,None,0,1,2,True,[("Any%",1),("100%",2.6)],5400,0,None),
+ ("pokered","Pokémon Red/Blue","1996-02-27",["RPG"],["Game Freak"],["Game Boy","3DS"],"Pokémon Series",RT,None,0,1,3,True,[("Glitchless",1),("Any%",.28)],4300,0,"ポケットモンスター 赤・緑"),
+ ("dkc","Donkey Kong Country","1994-11-21",["Platformer"],["Rare"],["SNES","WiiVC","Switch"],"Donkey Kong Series",RT,None,0,1,2,False,[("Any%",1),("101%",2.3)],2400,1,None),
+ ("spyro","Spyro the Dragon","1998-09-09",["Platformer"],["Insomniac Games"],["PS1","PS4"],"Spyro Series",RT,None,0,1,2,True,[("Any%",1),("120%",2.2)],5000,0,None),
+ ("crash","Crash Bandicoot","1996-09-09",["Platformer"],["Naughty Dog"],["PS1","PS4","Switch"],"Crash Series",RT,None,0,1,2,True,[("Any%",1),("105%",2.5)],5400,0,None),
+ ("eldenring","Elden Ring","2022-02-25",["Action RPG"],["FromSoftware"],["PC","PS4","PS5","XboxOne","Xbox Series X"],"Souls Series",IGT,RT,1,0,3,False,[("Any%",1),("All Remembrances",5.5),("Glitchless",2.5)],3000,1,None),
+ ("darksouls","Dark Souls","2011-09-22",["Action RPG"],["FromSoftware"],["PC","PS3","Xbox 360"],"Souls Series",IGT,RT,0,1,3,False,[("Any%",1),("All Bosses",3),("Glitchless",2)],5400,1,None),
+ ("terraria","Terraria","2011-05-16",["Sandbox"],["Re-Logic"],["PC","Switch","PS4"],None,RT,None,0,0,2,False,[("Any% Classic",1),("Master Mode Any%",2.5)],1500,1,None),
+ ("odyssey","Super Mario Odyssey","2017-10-27",["Platformer"],["Nintendo EPD"],["Switch"],"Super Mario Series",RT,None,0,0,3,False,[("Any%",1),("All Moons",7),("Darker Side",1.9)],4800,1,None),
+ ("sunshine","Super Mario Sunshine","2002-07-19",["Platformer"],["Nintendo EAD"],["GameCube","Switch"],"Super Mario Series",RT,None,0,1,2,True,[("Any%",1),("120 Shines",3.2)],5000,0,None),
+ ("mk64","Mario Kart 64","1996-12-14",["Racing"],["Nintendo EAD"],["N64","WiiVC"],"Mario Kart Series",RT,None,0,1,3,True,[("Time Trial (3 laps)","L"),("150cc Grand Prix",1)],900,1,None,
+   ["Luigi Raceway","Moo Moo Farm","Koopa Troopa Beach","Kalimari Desert","Toad's Turnpike","Frappe Snowland","Choco Mountain","Mario Raceway","Wario Stadium","Sherbet Land","Royal Raceway","Bowser's Castle","D.K.'s Jungle Parkway","Yoshi Valley","Banshee Boardwalk","Rainbow Road"]),
+ ("mk8dx","Mario Kart 8 Deluxe","2017-04-28",["Racing"],["Nintendo EPD"],["Switch"],"Mario Kart Series",RT,None,0,0,2,False,[("Time Trial (3 laps)","L"),("150cc Grand Prix",1)],800,1,None,
+   ["Mario Kart Stadium","Water Park","Sweet Sweet Canyon","Thwomp Ruins","Mario Circuit","Toad Harbor","Twisted Mansion","Shy Guy Falls","Sunshine Airport","Dolphin Shoals","Electrodrome","Mount Wario"]),
+ ("mm","The Legend of Zelda: Majora's Mask","2000-10-26",["Action-adventure"],["Nintendo EAD"],["N64","GameCube","WiiVC"],"The Legend of Zelda Series",RT,None,0,1,2,True,[("Any%",1),("All Masks",2.3)],5400,0,None),
+ ("goldeneye","GoldenEye 007","1997-08-25",["First-person shooter"],["Rare"],["N64","WiiVC"],None,RT,None,0,1,2,True,[("Agent",1),("00 Agent",1.1)],2800,0,None),
+ ("bk","Banjo-Kazooie","1998-06-29",["Platformer"],["Rare"],["N64","XboxOne"],"Banjo Series",RT,None,0,1,2,True,[("Any%",1),("100%",4.2)],5200,0,None),
+ ("kirbydl","Kirby's Dream Land","1992-04-27",["Platformer"],["HAL Laboratory"],["Game Boy","3DS"],"Kirby Series",RT,None,0,1,1,True,[("Normal",1),("Extra",1.5)],1100,1,None),
+ ("sotn","Castlevania: Symphony of the Night","1997-03-20",["Metroidvania"],["Konami"],["PS1","PS4","XboxOne"],"Castlevania Series",RT,None,0,1,2,True,[("Any%",1),("All Relics",2.1)],3000,0,None),
+ ("ff7","Final Fantasy VII","1997-01-31",["RPG"],["Square"],["PS1","PC","Switch"],"Final Fantasy Series",RT,None,0,1,2,True,[("Any%",1),("100%",2.3)],21000,0,None),
+ ("chronotrigger","Chrono Trigger","1995-03-11",["RPG"],["Square"],["SNES","DS","PC"],"Chrono Series",RT,None,0,1,2,False,[("Any%",1),("100%",3)],9000,0,"クロノ・トリガー"),
+ ("stardew","Stardew Valley","2016-02-26",["Simulation"],["ConcernedApe"],["PC","Switch","PS4"],None,RT,None,0,0,2,False,[("Community Center",1),("Perfection",11)],5400,0,None),
+ ("spelunky","Spelunky","2008-12-21",["Roguelike"],["Mossmouth"],["PC","Xbox 360"],None,RT,None,0,0,2,False,[("Any%",1),("Low%",1.4)],700,1,None),
+ ("sts","Slay the Spire","2019-01-23",["Roguelike","Card game"],["Mega Crit"],["PC","Switch","PS4","XboxOne"],None,RT,None,0,0,2,False,[("Ironclad Any%",1),("Watcher A20",1.3)],1500,1,None),
+ ("re4","Resident Evil 4","2005-01-11",["Survival horror"],["Capcom"],["GameCube","PS2","PC","Wii"],"Resident Evil Series",RT,None,0,1,2,True,[("New Game Any%",1),("Professional",1.3)],5400,0,None),
+ ("alttp","The Legend of Zelda: A Link to the Past","1991-11-21",["Action-adventure"],["Nintendo EAD"],["SNES","WiiVC","Switch"],"The Legend of Zelda Series",RT,None,0,1,3,False,[("Any% No Major Glitches",1),("Glitched Any%",.3),("All Dungeons",1.8)],4200,0,None),
+]
+SERIES = {"Super Mario Series": 1, "The Legend of Zelda Series": 5, "Portal Series": 6, "Minecraft Series": 7}
+new_series = []
+for g in GAMES:
+    s = g[6]
+    if s and s not in SERIES:
+        SERIES[s] = max(SERIES.values()) + 1; new_series.append((SERIES[s], s))
+ins("SERIES", ["series_id","series_name"], [(5,"The Legend of Zelda Series"),(6,"Portal Series"),(7,"Minecraft Series")] + new_series)
+FIRST_GID = 7
+gid_of = {g[0]: FIRST_GID + i for i, g in enumerate(GAMES)}
+ins("FORUM", ["forum_id","forum_name"], [(gid_of[g[0]], f"{g[1]} Forums") for g in GAMES])
 
 # ---------------------------------------------------------------- games
-# (id, abbr, name, jp, release, ms, req_video, emu, default, t1, t2, forum, genres, devs, platforms, regions, series, categories[(no,name,base_s,spread,rules)])
-RT, RTNL, IGT = "real time", "real time without loads", "in-game time"
-GAMES = [
- dict(id=7, abbr="smw", name="Super Mario World", jp="スーパーマリオワールド", rel="1990-11-21", ms=1, vid=0, emu=1, default=RT, t1=RT, t2=None, forum=7,
-      genres=["Platformer"], devs=["Nintendo EAD"], plats=[3, 9, 8], regions=[], series=[1],
-      cats=[(1,"Any%",560,.30,"Beat the game via any route. Timing starts on file select and ends on the final input."),
-            (2,"96 Exit",2650,.12,"Finish the game having cleared all 96 exits."),
-            (3,"11 Exit",1620,.15,"Finish the game using only 11 exits.")],
-      plat_for_run=[3, 3, 3, 9, 8], mods=(2, 2, 2), n_runs=(9, 7, 6), ids=None),
- dict(id=8, abbr="oot", name="The Legend of Zelda: Ocarina of Time", jp="ゼルダの伝説 時のオカリナ", rel="1998-11-21", ms=0, vid=1, emu=1, default=RT, t1=RT, t2=None, forum=8,
-      genres=["Action-adventure"], devs=["Nintendo EAD"], plats=[1, 11, 13, 9], regions=[1, 2, 3], series=[5],
-      cats=[(1,"Any%",1620,.18,"Reach the credits as fast as possible."),
-            (2,"100%",12400,.12,"Collect every item, heart piece, and Skulltula token."),
-            (3,"Glitchless Any%",11300,.10,"Beat the game without glitches.")],
-      plat_for_run=[1, 1, 1, 11, 13, 9], mods=(2, 2, 1), n_runs=(8, 6, 6), ids=None),
- dict(id=9, abbr="portal", name="Portal", jp=None, rel="2007-10-10", ms=1, vid=0, emu=0, default=RTNL, t1=RTNL, t2=RT, forum=9,
-      genres=["Puzzle", "First-person"], devs=["Valve"], plats=[2, 8], regions=[], series=[6],
-      cats=[(1,"Inbounds",415,.10,"No out-of-bounds glitches. Timing excludes loads."),
-            (2,"Out of Bounds",530,.12,"Out-of-bounds glitches allowed. Timing excludes loads."),
-            (3,"Glitchless",760,.14,"No glitches of any kind.")],
-      plat_for_run=[2, 2, 2, 2, 8], mods=(2, 1, 1), n_runs=(8, 6, 6), ids=None),
- dict(id=10, abbr="mcj", name="Minecraft: Java Edition", jp=None, rel="2011-11-18", ms=1, vid=1, emu=0, default=RT, t1=RT, t2=None, forum=10,
-      genres=["Sandbox", "Survival"], devs=["Mojang Studios"], plats=[2], regions=[], series=[7],
-      cats=[(1,"Any% Random Seed Glitchless",720,.40,"Defeat the Ender Dragon on a random seed without glitches. Video required."),
-            (2,"Any% Set Seed Glitchless",560,.25,"Defeat the Ender Dragon on a fixed seed without glitches. Video required."),
-            (3,"All Advancements",19800,.20,"Earn every advancement.")],
-      plat_for_run=[2], mods=(2, 2, 1), n_runs=(9, 6, 5), ids=None),
-]
 w("\n-- ---------- new games")
+G_ROWS, PART, AVAIL, REL, GEN, DEV, LINK, CAT, LEVEL_ROWS = [], [], [], [], [], [], [], [], []
+GAME_INFO = {}
 for g in GAMES:
-    ins("GAME", ["game_id","abbreviation","name_international","name_japanese","release_date","show_milliseconds","require_video","emulators_allowed","default_time_type","run_time_type_1","run_time_type_2","forum_id"],
-        [(g["id"], g["abbr"], g["name"], g["jp"], g["rel"], g["ms"], g["vid"], g["emu"], g["default"], g["t1"], g["t2"], g["forum"])])
-ins("PART_OF", ["game_id","series_id"], [(g["id"], s) for g in GAMES for s in g["series"]])
-ins("AVAILABLE_ON", ["game_id","platform_id"], [(g["id"], p) for g in GAMES for p in g["plats"]])
-ins("RELEASED_IN", ["game_id","region_id"], [(g["id"], r) for g in GAMES for r in g["regions"]])
-ins("GAME_GENRE", ["game_id","genre"], [(g["id"], x) for g in GAMES for x in g["genres"]])
-ins("GAME_DEVELOPER", ["game_id","developer"], [(g["id"], x) for g in GAMES for x in g["devs"]])
-ins("GAME_LINK", ["game_id","link"], [(g["id"], f"https://www.speedrun.com/{g['abbr']}") for g in GAMES])
-ins("CATEGORY", ["game_id","category_no","name","type","rules"], [(g["id"], c[0], c[1], "full game", c[4]) for g in GAMES for c in g["cats"]])
+    (abbr, name, rel, genres, devs, plats, series, tt1, tt2, vid, emu, pop, regions, cats, anysec, ms, jp) = g[:17]
+    levels = g[17] if len(g) > 17 else []
+    gid = gid_of[abbr]
+    G_ROWS.append((gid, abbr, name, jp, rel, ms, vid, emu, tt1, tt1, tt2, gid))
+    if series: PART.append((gid, SERIES[series]))
+    AVAIL += [(gid, PLAT[p]) for p in plats]
+    if regions: REL += [(gid, r) for r in (1, 2, 3)]
+    GEN += [(gid, x) for x in genres]; DEV += [(gid, x) for x in devs]
+    LINK.append((gid, f"https://www.speedrun.com/{abbr}"))
+    for i, (cn, mult) in enumerate(cats, 1):
+        CAT.append((gid, i, cn, "per level" if mult == "L" else "full game", f"Timing starts on file select and ends on the final input. {cn} rules apply."))
+    for i, ln in enumerate(levels, 1): LEVEL_ROWS.append((gid, i, ln))
+    GAME_INFO[abbr] = dict(gid=gid, g=g, levels=levels)
+ins("GAME", ["game_id","abbreviation","name_international","name_japanese","release_date","show_milliseconds","require_video","emulators_allowed","default_time_type","run_time_type_1","run_time_type_2","forum_id"], G_ROWS)
+ins("PART_OF", ["game_id","series_id"], PART)
+ins("AVAILABLE_ON", ["game_id","platform_id"], AVAIL)
+ins("RELEASED_IN", ["game_id","region_id"], REL)
+ins("GAME_GENRE", ["game_id","genre"], GEN)
+ins("GAME_DEVELOPER", ["game_id","developer"], DEV)
+ins("GAME_LINK", ["game_id","link"], LINK)
+ins("CATEGORY", ["game_id","category_no","name","type","rules"], CAT)
+ins("LEVEL", ["game_id","level_no","name"], LEVEL_ROWS)
 
 # ---------------------------------------------------------------- staff
-w("\n-- ---------- game staff (generated; since = 2019-01-01)")
-pool = POOL[:]
-random.shuffle(pool)
-staff = {}   # game id -> {'all': [...], 'verifiers': ...}
-mg_rows = []
+w("\n-- ---------- game staff and series moderators (fictional)")
+mg_rows, staff, since_of = [], {}, {}
 for g in GAMES:
-    nsm, nm, nv = 1, g["mods"][1], g["mods"][2]
-    sm = [pool.pop() for _ in range(nsm)]
-    mo = [pool.pop() for _ in range(nm)]
-    ve = [pool.pop() for _ in range(nv)]
-    staff[g["id"]] = sm + mo + ve
-    mg_rows += [(u, g["id"], 3, "2019-01-01") for u in sm] + [(u, g["id"], 2, "2019-01-01") for u in mo] + [(u, g["id"], 1, "2019-01-01") for u in ve]
+    abbr, rel, pop = g[0], g[2], g[11]
+    gid = gid_of[abbr]
+    start = max(dt.date.fromisoformat(rel) + dt.timedelta(days=14), dt.date(2019, 1, 1))
+    since_of[gid] = start
+    since = str(start - dt.timedelta(days=20))
+    picks = random.sample(POOL, 1 + (1 if pop > 1 else 0) + 2 + pop + 1 + (pop - 1))
+    nsm = 1 + (1 if pop > 1 else 0); nm = 2 + pop; nv = 1 + (pop - 1)
+    sm, mo, ve = picks[:nsm], picks[nsm:nsm + nm], picks[nsm + nm:nsm + nm + nv]
+    staff[gid] = sm + mo + ve
+    mg_rows += [(u, gid, 3, since) for u in sm] + [(u, gid, 2, since) for u in mo] + [(u, gid, 1, since) for u in ve]
 ins("MODERATES_GAME", ["user_id","game_id","role_id","since"], mg_rows)
-# series moderators (real speedrun.com lets series staff moderate every game in the series)
-sm_series = {5: pool.pop(), 6: pool.pop(), 7: pool.pop()}
-ins("MODERATES_SERIES", ["user_id","series_id","role_id","since"], [(u, s, 3, "2019-01-01") for s, u in sm_series.items()] + [(staff[7][0], 1, 2, "2019-01-01")])
-for s, u in sm_series.items():  # series staff also verify games of that series
-    pass
+series_mods = {}
+for s, sid in SERIES.items():
+    if sid >= 5: series_mods[sid] = random.choice(POOL)
+sm_rows = [(u, sid, 3, "2018-06-01") for sid, u in series_mods.items()]
+ins("MODERATES_SERIES", ["user_id","series_id","role_id","since"], sm_rows)
 
 # ---------------------------------------------------------------- runs
-w("\n-- ---------- runs: inserted unexamined, then verified / rejected (examiner must moderate the game)")
+w("\n-- ---------- runs: inserted unexamined, then verified / rejected by a moderator or admin")
 rid = 105
-run_rows, pb_rows, rt_rows, vid_rows, upd_verify, upd_reject = [], [], [], [], [], []
-video_n = 2000000000
-REJECT = ["Run does not meet the category rules.", "Video does not show the full run.", "Timing is wrong: the time on the splits does not match the submission.", "Missing required game audio / input display."]
+run_rows, pb_rows, rt_rows, vid_rows, lvl_rows = [], [], [], [], []
+verify = {}     # (examiner, gid) -> [run ids]
+rejects = []    # (run id, admin, reason, hours)
 runs_by_game = {}
+video_n = 2000000000
+REJECT = ["Run does not meet the category rules.", "Video does not show the full run.", "Timing is wrong: splits do not match the submitted time.",
+          "Missing required game audio or input display.", "Wrong category selected.", "Splice detected in video."]
+def split_ms(t):
+    h, rem = divmod(t, 3600000); m, rem = divmod(rem, 60000); s, ms = divmod(rem, 1000); return h, m, s, ms
 for g in GAMES:
-    players_pool = [u for u in POOL if u not in staff[g["id"]]]
-    gstaff = staff[g["id"]]
-    for ci, c in enumerate(g["cats"]):
-        base, spread = c[2], c[3]
-        n = g["n_runs"][ci] * SCALE
-        chosen = random.sample(players_pool, n)
-        for k, p in enumerate(chosen):
-            secs = base * (1 + spread * (k ** 1.15) / max(n - 1, 1) + random.random() * .01)
-            total_ms = int(secs * 1000)
-            if not g["ms"]: total_ms = (total_ms // 1000) * 1000
-            rdate = dt.date(2021, 1, 1) + dt.timedelta(days=random.randint(0, 1750))
-            sub = dt.datetime.combine(rdate, dt.time(random.randint(8, 22), random.randint(0, 59), random.randint(0, 59))) + dt.timedelta(days=random.randint(0, 3))
-            status = "verified"
-            if k == n - 1 and ci == 0: status = "new"          # newest unexamined run in each game's first category
-            if k == n - 2 and ci == 1: status = "rejected"
-            if status == "new":
-                rdate = dt.date(2026, 11, random.randint(5, 10)); sub = dt.datetime.combine(rdate, dt.time(random.randint(8, 22), random.randint(0, 59), 0))
-            plat = random.choice(g["plat_for_run"])
-            region = random.choice(g["regions"]) if g["regions"] else None
-            emu = 1 if (g["emu"] and plat in (9, 13) and False) else 0
-            comment = random.choice([None, None, None, "Not a perfect run but happy with the pace.", "PB! Route finally clicked.", "Good RNG on the middle section.", "New personal best."])
-            run_rows.append((rid, str(rdate), str(sub), emu, comment, g["id"], c[0], p, plat, region))
-            pb_rows.append((rid, p, 1))
-            if random.random() < .08:  # occasional co-op style second player (only for smw)
-                if g["abbr"] == "smw":
-                    co = random.choice([u for u in players_pool if u != p]); pb_rows.append((rid, co, 2))
-            h, rem = divmod(total_ms, 3600000); m, rem = divmod(rem, 60000); s, ms = divmod(rem, 1000)
-            rt_rows.append((rid, g["default"], h, m, s, ms))
-            if g["t2"] and random.random() < .6:
-                tt = int(total_ms * 1.07); h2, rem = divmod(tt, 3600000); m2, rem = divmod(rem, 60000); s2, ms2 = divmod(rem, 1000)
-                rt_rows.append((rid, g["t2"], h2, m2, s2, ms2 if g["ms"] else 0))
-            video_n += random.randint(1000, 999999)
-            vid_rows.append((rid, f"https://www.twitch.tv/videos/{video_n}"))
-            if status == "verified":
-                ex = random.choice(gstaff); dec = sub + dt.timedelta(hours=random.randint(1, 96))
-                upd_verify.append((rid, ex, str(dec)))
-            elif status == "rejected":
-                dec = sub + dt.timedelta(hours=random.randint(2, 48))
-                upd_reject.append((rid, random.choice(ADMINS), str(dec), random.choice(REJECT)))
-            runs_by_game.setdefault(g["id"], []).append((rid, p, status))
-            rid += 1
-ins("RUN", ["run_id","run_date","submitted_at","emulated","comment","game_id","category_no","submitter_id","platform_id","region_id"], run_rows)
-ins("PLAYED_BY", ["run_id","user_id","player_order"], pb_rows)
-ins("RUN_TIME", ["run_id","time_type","hours","minutes","seconds","milliseconds"], rt_rows)
-ins("RUN_VIDEO_LINK", ["run_id","link"], vid_rows)
-for r, ex, dec in upd_verify:
-    w(f"UPDATE RUN SET examiner_id = {ex}, decided_on = {q(dec)} WHERE run_id = {r};")
-for r, ex, dec, why in upd_reject:
-    w(f"UPDATE RUN SET examiner_id = {ex}, decided_on = {q(dec)}, reject_reason = {q(why)} WHERE run_id = {r};")
-
-# features: each of a few players features their best verified run
-feat = []
-seen = set()
+    (abbr, name, rel, genres, devs, plats, series, tt1, tt2, vid, emu, pop, regions, cats, anysec, ms) = g[:16]
+    gid = gid_of[abbr]; start = since_of[gid]; levels = GAME_INFO[abbr]["levels"]
+    gstaff = staff[gid]; players_pool = [u for u in POOL if u not in gstaff]
+    base_n = max(8, int(32 * pop * RSCALE))
+    span = (dt.date(2026, 10, 25) - start).days
+    for ci, (cn, mult) in enumerate(cats, 1):
+        groups = []  # (level_no or None, base_secs, n)
+        if mult == "L":
+            for li, ln in enumerate(levels, 1):
+                groups.append((li, 62 + 8 * ((li * 7) % 9) if abbr == "mk64" else 70 + 6 * ((li * 5) % 8), max(6, base_n // len(levels) + 2)))
+        else:
+            groups.append((None, anysec * mult, max(6, int(base_n * (0.7 ** (ci - 1))))))
+        for li, base, n in groups:
+            chosen = random.sample(players_pool, n)
+            for k, p in enumerate(chosen):
+                secs = base * (1 + .4 * ((k / max(n - 1, 1)) ** 1.25) + random.random() * .012)
+                total = int(secs * 1000)
+                if not ms: total = (total // 1000) * 1000
+                total = max(total, 1000)
+                runs_here = [(total, start + dt.timedelta(days=random.randint(span // 3, span)))]
+                if random.random() < .16:   # an older, slower personal best
+                    runs_here.append((int(total * random.uniform(1.03, 1.22)), start + dt.timedelta(days=random.randint(0, span // 3))))
+                for j, (tot, rdate) in enumerate(runs_here):
+                    sub = dt.datetime.combine(rdate, dt.time(random.randint(8, 23), random.randint(0, 59), random.randint(0, 59))) + dt.timedelta(days=random.randint(0, 3))
+                    status = "verified"
+                    if ci == 1 and li in (None, 1) and k >= n - 2 and j == 0:
+                        status = "new"
+                        rdate = dt.date(2026, 11, random.randint(5, 11)); sub = dt.datetime.combine(rdate, dt.time(random.randint(8, 22), random.randint(0, 59), 0))
+                    elif k == n - 3 and ci == min(2, len(cats)) and j == 0 and li in (None, 1):
+                        status = "rejected"
+                    plat = random.choice(plats); emulated = 1 if (emu and plat in RETRO and random.random() < .12) else 0
+                    region = random.choice([1, 2, 3]) if regions else None
+                    comment = random.choice([None] * 6 + ["PB! Route finally clicked.", "Good RNG on the middle section.", "New personal best.", "Not perfect but happy with the pace.", "Finally got the skip.", "Grinding for sub-time."])
+                    run_rows.append((rid, str(rdate), str(sub), emulated, comment, gid, ci, p, PLAT[plat], region))
+                    pb_rows.append((rid, p, 1))
+                    h, m, s, mm = split_ms(tot); rt_rows.append((rid, tt1, h, m, s, mm if ms else 0))
+                    if tt2 and random.random() < .6:
+                        h2, m2, s2, mm2 = split_ms(int(tot * 1.07)); rt_rows.append((rid, tt2, h2, m2, s2, mm2 if ms else 0))
+                    video_n += random.randint(1000, 999999)
+                    vid_rows.append((rid, f"https://www.twitch.tv/videos/{video_n}"))
+                    if li: lvl_rows.append((rid, gid, li))
+                    if status == "verified":
+                        verify.setdefault((random.choice(gstaff), gid), []).append(rid)
+                    elif status == "rejected":
+                        rejects.append((rid, random.choice(ADMIN_IDS), random.choice(REJECT), random.randint(2, 48)))
+                    runs_by_game.setdefault(gid, []).append((rid, p, status))
+                    rid += 1
+ins("RUN", ["run_id","run_date","submitted_at","emulated","comment","game_id","category_no","submitter_id","platform_id","region_id"], run_rows, 500)
+ins("PLAYED_BY", ["run_id","user_id","player_order"], pb_rows, 800)
+ins("RUN_TIME", ["run_id","time_type","hours","minutes","seconds","milliseconds"], rt_rows, 800)
+ins("RUN_VIDEO_LINK", ["run_id","link"], vid_rows, 800)
+ins("LEVEL_RUN", ["run_id","game_id","level_no"], lvl_rows, 800)
+w("-- verification: decision time = submission + 1..72 hours")
+for (ex, gid), ids in verify.items():
+    for i in range(0, len(ids), 300):
+        w(f"UPDATE RUN SET examiner_id = {ex}, decided_on = submitted_at + INTERVAL ((run_id % 72) + 1) HOUR WHERE run_id IN ({', '.join(map(str, ids[i:i+300]))});")
+for r, adm, why, hrs in rejects:
+    w(f"UPDATE RUN SET examiner_id = {adm}, decided_on = submitted_at + INTERVAL {hrs} HOUR, reject_reason = {q(why)} WHERE run_id = {r};")
+feat, seen = [], {}
 for gid, rs in runs_by_game.items():
-    for (r, p, st) in rs[:3]:
-        if st == "verified" and p not in seen:
-            seen.add(p); feat.append((p, r, 1))
+    for (r, p, st) in rs[:25]:
+        if st == "verified" and seen.get(p, 0) < 2 and random.random() < .5:
+            seen[p] = seen.get(p, 0) + 1; feat.append((p, r, seen[p]))
 ins("FEATURES", ["user_id","run_id","featured_order"], feat)
 
-# ---------------------------------------------------------------- memberships
-w("\n-- ---------- supporter memberships (plan names / prices are approximations of speedrun.com's Supporter plans)")
+# ---------------------------------------------------------------- memberships, streams
+w("\n-- ---------- supporter memberships (plan names / prices are approximations)")
 ins("MEMBERSHIP", ["plan_id","plan_name","monthly_price"], [(1,"Supporter",3.00),(2,"Supporter Plus",5.00),(3,"Patron",10.00)])
-holders = random.sample(POOL, 14)
-ins("HOLDS_MEMBERSHIP", ["user_id","plan_id","start_date","end_date"],
-    [(u, random.choice([1, 1, 1, 2, 3]), str(d := dt.date(2025, 6, 1) + dt.timedelta(days=random.randint(0, 400))), str(d + dt.timedelta(days=random.choice([30, 90, 180, 365])))) for u in holders])
-
-# ---------------------------------------------------------------- streams
+holders = random.sample(POOL, min(450, len(POOL)))
+hm = []
+for u in holders:
+    d = dt.date(2025, 1, 1) + dt.timedelta(days=random.randint(0, 600))
+    hm.append((u, random.choice([1, 1, 1, 2, 2, 3]), str(d), str(d + dt.timedelta(days=random.choice([30, 90, 180, 365])))))
+ins("HOLDS_MEMBERSHIP", ["user_id","plan_id","start_date","end_date"], hm)
 w("\n-- ---------- live streams (fictional channels)")
+STITLE = ["{g} any% attempts", "{g} PB grind", "{g} route practice", "Learning {g}", "{g} races with chat", "{g} world record pace?"]
 streams = []
-titles = {1:"{} - 120 Star practice", 2:"Celeste any% grind", 7:"SMW 96 exit attempts", 8:"OoT 100% route work", 9:"Portal OoB practice", 10:"MC random seed glitchless attempts"}
-for gid, tmpl in titles.items():
-    for k in range(2 if gid in (1, 2, 8, 10) else 1):
-        u = random.choice(POOL); nm = next(x[1] for x in users if x[0] == u)
-        streams.append((nm.lower(), random.choice(["Twitch", "Twitch", "YouTube"]), tmpl.replace("{}", nm), gid))
+for g in GAMES:
+    for _ in range(random.choice([1, 2, 2, 3])):
+        u = random.choice(POOL)
+        streams.append((UNAME[u].lower(), random.choice(["Twitch", "Twitch", "Twitch", "YouTube"]), random.choice(STITLE).replace("{g}", g[1]), gid_of[g[0]]))
 ins("STREAM", ["channel_name","service","title","game_id"], streams)
 
-# ---------------------------------------------------------------- follows
+# ---------------------------------------------------------------- follows, permissions
 w("\n-- ---------- follows (user->user, user->game)")
-fol = set()
-for u in POOL + ADMINS:
-    for _ in range(random.randint(2, 6)):
-        t = random.choice(list(range(1, LAST_UID + 1)))
+fol = set(); allu = list(range(1, LAST_UID + 1))
+for u in POOL + ADMIN_IDS:
+    for _ in range(random.randint(3, 9)):
+        t = random.choice(allu)
         if t != u and t not in BANNED: fol.add((u, t))
-ins("FOLLOWS", ["follower_id","followed_id"], sorted(fol))
+ins("FOLLOWS", ["follower_id","followed_id"], sorted(fol), 800)
+NG = FIRST_GID + len(GAMES) - 1
 fg = set()
 for u in range(1, LAST_UID + 1):
     if u in BANNED: continue
-    for gid in random.sample(range(1, 11), random.randint(1, 4)): fg.add((u, gid))
+    for gid in random.sample(range(1, NG + 1), random.randint(1, 7)): fg.add((u, gid))
 ins("FOLLOWS_GAME", ["user_id","game_id","last_visit"],
-    [(u, gid, str(dt.datetime(2026, 10, 1) + dt.timedelta(minutes=random.randint(0, 42 * 1440)))) for u, gid in sorted(fg)])
-
-# ---------------------------------------------------------------- role permissions
+    [(u, gid, str(dt.datetime(2026, 9, 15) + dt.timedelta(minutes=random.randint(0, 58 * 1440)))) for u, gid in sorted(fg)], 800)
 w("\n-- ---------- moderator role permissions (descriptive)")
 ins("ROLE_PERMISSION", ["role_id","permission"],
     [(1,"verify runs"),(1,"view submission queue"),
      (2,"verify runs"),(2,"view submission queue"),(2,"edit categories and levels"),(2,"edit game rules"),(2,"post game news"),(2,"lock forum threads"),
      (3,"verify runs"),(3,"view submission queue"),(3,"edit categories and levels"),(3,"edit game rules"),(3,"post game news"),(3,"lock forum threads"),(3,"manage game moderators"),(3,"edit game settings")])
 
-# ---------------------------------------------------------------- forum activity
-w("\n-- ---------- extra threads / replies")
-THREADS = {
- 1: ["Best route for 70 star?", "Is the 1 Star DDD skip consistent for anyone?", "Splits for 16 star?"],
- 2: ["Farewell route help", "Which controller do you use?", "B-side tips thread"],
- 7: ["Rules clarification: Small Only", "Beginner tips for 96 Exit", "Best setup for SNES capture?"],
- 8: ["Any% Wrong Warp setup question", "Glitchless route changes", "Looking for race partners", "Region differences discussion"],
- 9: ["OoB strat help (portal 2 map)", "Why was my run rejected?", "Frame-perfect doors"],
- 10: ["Seed pool discussion", "Allowed mods for random seed", "Bastion vs fortress split"],
-}
-REPL = ["Thanks, that helped a lot!", "I had the same issue last week.", "Check the pinned rules, it's in there.", "+1", "Can confirm, works for me.", "You can ask in the Discord too.", "Good question, I'd like to know as well.", "That route is outdated, try the new one."]
+# ---------------------------------------------------------------- forum
+w("\n-- ---------- forum threads / replies")
+TT = ["Best route for {c}?", "Is {c} worth learning in 2026?", "{c} setup and capture advice", "Rules clarification for {c}", "Beginner tips for {c}", "What split timer do you use?",
+      "Looking for race partners", "Why was my run rejected?", "Frame-perfect trick help", "Which platform is best for {c}?", "New PB discussion", "Controller / input display question",
+      "Resources and guides thread", "Emulator vs console differences", "Leaderboard rule change feedback"]
+REPL = ["Thanks, that helped a lot!", "I had the same issue last week.", "Check the pinned rules, it's in there.", "+1", "Can confirm, works for me.", "You can ask in the Discord too.",
+        "Good question, I'd like to know as well.", "That route is outdated, try the new one.", "Make sure your timer starts on file select.", "GL on the grind!",
+        "I switched to a different setup and it got way easier.", "Search the forum, this was answered before.", "Pretty sure that's allowed but ask a moderator.", "Nice, congrats on the PB!"]
 th_rows, rp_rows, locked = [], [], []
-counters = {1: 6, 2: 3, 3: 3, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0}
-for fid, tts in THREADS.items():
-    for t in tts:
+counters = {1: 6, 2: 3, 3: 3, 4: 0, 5: 0, 6: 0}
+for fid in (1, 2, 3, 4, 5, 6): counters.setdefault(fid, 0)
+for g in GAMES: counters[gid_of[g[0]]] = 0
+for g in GAMES:
+    fid = gid_of[g[0]]; cat = g[13][0][0]
+    for _ in range(random.randint(4, 14)):
         counters[fid] += 1; code = f"x{counters[fid]}"
-        st = random.choice(POOL); created = dt.datetime(2025, 1, 1) + dt.timedelta(minutes=random.randint(0, 600 * 1440))
-        th_rows.append((fid, code, t, str(created), st))
-        for rno in range(1, random.randint(1, 5) + 1):
-            posted = created + dt.timedelta(hours=rno * random.randint(1, 30))
-            edited = str(posted + dt.timedelta(minutes=random.randint(1, 90))) if random.random() < .15 else None
+        created = dt.datetime(2024, 1, 1) + dt.timedelta(minutes=random.randint(0, 1050 * 1440))
+        th_rows.append((fid, code, random.choice(TT).replace("{c}", cat), str(created), random.choice(POOL)))
+        for rno in range(1, random.randint(1, 10) + 1):
+            posted = created + dt.timedelta(hours=rno * random.randint(1, 36))
+            edited = str(posted + dt.timedelta(minutes=random.randint(1, 90))) if random.random() < .12 else None
             rp_rows.append((fid, code, rno, random.choice(REPL), str(posted), edited, random.choice(POOL)))
-        if random.random() < .15: locked.append((fid, code))
-ins("THREAD", ["forum_id","thread_code","title","created_at","starter_id"], th_rows)
-ins("REPLY", ["forum_id","thread_code","reply_no","body","posted_at","edited_at","author_id"], rp_rows)
+        if random.random() < .1: locked.append((fid, code))
+for fid in (1, 2, 3):
+    for _ in range(random.randint(2, 5)):
+        counters[fid] += 1; code = f"x{counters[fid]}"
+        created = dt.datetime(2025, 1, 1) + dt.timedelta(minutes=random.randint(0, 600 * 1440))
+        th_rows.append((fid, code, random.choice(TT).replace("{c}", "this game"), str(created), random.choice(POOL)))
+        for rno in range(1, random.randint(1, 6) + 1):
+            rp_rows.append((fid, code, rno, random.choice(REPL), str(created + dt.timedelta(hours=rno * 5)), None, random.choice(POOL)))
+ins("THREAD", ["forum_id","thread_code","title","created_at","starter_id"], th_rows, 600)
+ins("REPLY", ["forum_id","thread_code","reply_no","body","posted_at","edited_at","author_id"], rp_rows, 600)
 for fid, code in locked: w(f"UPDATE THREAD SET is_locked = 1 WHERE forum_id = {fid} AND thread_code = {q(code)};")
 
-# ---------------------------------------------------------------- news (approved by generated admins; plus pending/rejected)
-w("\n-- ---------- extra news posts")
-news = [
- (5,"New category added: 11 Exit","The 11 Exit category is now open for submissions on Super Mario World.","approved",7,"Rules"),
- (6,"Glitchless rules update","Clarified rules about skipping the long cutscenes in Ocarina of Time Glitchless Any%.","approved",8,"Rules"),
- (7,"Portal leaderboard cleanup","Old timing method runs were re-timed to exclude loads.","approved",9,"Leaderboard"),
- (8,"Video now required for Minecraft runs","All Minecraft: Java Edition submissions now require a continuous video.","approved",10,"Videos"),
- (9,"Community tournament announced","A friendly community tournament for Super Mario 64 is being planned.","pending",1,"Community"),
- (10,"Spam post","Buy cheap followers now.","rejected",None,"Other"),
-]
-for nid, title, body, status, gid, topic in news:
-    author = (staff[gid][0] if gid in staff else random.choice(POOL)) if status != "rejected" else random.choice(POOL)
-    created = dt.datetime(2026, 5, 1) + dt.timedelta(days=nid * 6)
-    appr = ADMINS[nid % 3] if status == "approved" else None
-    apt = str(created + dt.timedelta(hours=7)) if status == "approved" else None
-    ins("NEWS_POST", ["news_id","title","body","created_at","status","approved_at","author_id","approver_id","game_id"], [(nid, title, body, str(created), status, apt, author, appr, gid)])
-    ins("NEWS_POST_TOPIC", ["news_id","topic"], [(nid, topic)])
+# ---------------------------------------------------------------- news
+w("\n-- ---------- news (approved by administrators; some pending / rejected)")
+NT = [("New category added: {c}", "Rules", "{c} is now open for submissions on {g}."),
+      ("Rules update for {g}", "Rules", "Moderators clarified timing and splice rules for {g}."),
+      ("{g} leaderboard cleanup", "Leaderboard", "Old runs on the {g} leaderboard were re-timed and some were rejected."),
+      ("Video proof now required for {g}", "Videos", "All {g} submissions now need a continuous video.")]
+news = []; nid = 5
+for g in GAMES:
+    for _ in range(random.choice([0, 1, 1, 2])):
+        t, topic, body = random.choice(NT)
+        cat = random.choice(g[13])[0]
+        news.append((nid, t.replace("{g}", g[1]).replace("{c}", cat), body.replace("{g}", g[1]).replace("{c}", cat), "approved", gid_of[g[0]], topic)); nid += 1
+news.append((nid, "Community tournament announced", "A friendly community tournament is being planned.", "pending", None, "Community")); nid += 1
+news.append((nid, "Spam post", "Buy cheap followers now.", "rejected", None, "Other")); nid += 1
+for n_id, title, body, status, gid, topic in news:
+    author = staff[gid][0] if gid else random.choice(POOL)
+    created = dt.datetime(2025, 1, 1) + dt.timedelta(days=n_id * 6 % 600, hours=n_id % 24)
+    appr = random.choice(ADMIN_IDS) if status == "approved" else None
+    ins("NEWS_POST", ["news_id","title","body","created_at","status","approved_at","author_id","approver_id","game_id"],
+        [(n_id, title, body, str(created), status, str(created + dt.timedelta(hours=7)) if appr else None, author, appr, gid)])
+    ins("NEWS_POST_TOPIC", ["news_id","topic"], [(n_id, topic)])
 
 # ---------------------------------------------------------------- tickets
-w("\n-- ---------- tickets (handlers are administrators; run reports only reference generated runs)")
-def tk(subject, body, typ, created, handler=None, closed=None, res=None, raised=None, game=None, run=None):
+w("\n-- ---------- tickets (handlers are administrators; run reports reference generated runs only)")
+allv = [r for rs in runs_by_game.values() for (r, p, st) in rs if st == "verified"]
+BUGS = [("Leaderboard page loads slowly", "The leaderboard takes a long time to load on mobile."), ("Wrong platform shown on run", "The run page lists the wrong platform."),
+        ("Search ignores accented names", "Searching with accents returns no results."), ("Follow button does nothing", "Clicking follow shows no change."),
+        ("Date picker shows wrong format", "The run date picker uses a different date format.")]
+OTHER = [("Please add a new platform", "A platform release is missing from the platform list."), ("Request: dark mode toggle", "Could a theme toggle be added to the profile page?"),
+         ("Category suggestion", "Suggesting a new category for a game."), ("Typo in game rules", "There is a typo in the rules text.")]
+RUNR = [("Suspected spliced video", "The video appears to contain a cut."), ("Incorrect time on run", "Submitted time does not match the video timer."),
+        ("Run missing input display", "The video does not show inputs."), ("Possible wrong category", "This looks like a different category than listed."), ("Run uses banned glitch", "A banned trick appears in the run.")]
+T = []; d0 = dt.datetime(2026, 3, 1, 10)
+def tk(subject, body, typ, created, raised, handler=None, closed=None, res=None, game=None, run=None):
     return (subject, body, typ, res, str(created), str(closed) if closed else None, raised, handler, game, run)
-vrun = [r for rs in runs_by_game.values() for (r, p, st) in rs if st == "verified"]
-T = []
-d0 = dt.datetime(2026, 8, 1, 10)
-T.append(tk("Leaderboard page not loading", "The leaderboard for a game times out on mobile.", "bug", d0, 121, d0 + dt.timedelta(days=2), "accepted", random.choice(POOL), None, None))
-T.append(tk("Wrong platform shown on run", "The run page lists PC but it was run on console.", "bug", d0 + dt.timedelta(days=3), 122, d0 + dt.timedelta(days=4), "accepted", random.choice(POOL), 7, None))
-T.append(tk("Search ignores accented names", "Searching 'Jose' does not return 'José'.", "bug", d0 + dt.timedelta(days=9), 123, None, None, random.choice(POOL), None, None))
-T.append(tk("Please add Wii Virtual Console to Ocarina of Time", "Platform list is missing the Wii VC release.", "other", d0 + dt.timedelta(days=12), None, None, None, random.choice(POOL), 8, None))
-T.append(tk("Theme request: dark mode toggle", "Could a toggle be added to the profile page?", "other", d0 + dt.timedelta(days=15), 121, d0 + dt.timedelta(days=20), "declined", random.choice(POOL), None, None))
-for i, rr in enumerate(random.sample(vrun, 5)):
-    c = d0 + dt.timedelta(days=20 + i * 4)
-    if i == 0:   T.append(tk("Suspected spliced video", "The video appears to contain a cut near the 5 minute mark.", "run report", c, 122, c + dt.timedelta(days=3), "declined", random.choice(POOL), None, rr))
-    elif i == 1: T.append(tk("Incorrect time on run", "Submitted time does not match the video timer.", "run report", c, 123, c + dt.timedelta(days=2), "accepted", random.choice(POOL), None, rr))
-    elif i == 2: T.append(tk("Run missing required input display", "The video does not show inputs.", "run report", c, 121, None, None, random.choice(POOL), None, rr))
-    else:        T.append(tk("Possible wrong category", "This looks like a different category than listed.", "run report", c, None, None, None, random.choice(POOL), None, rr))
-T.append(tk("Ban appeal: sorry for the spam", "I was banned for posting links in the forums. I have read the rules and will not repeat this.", "ban appeal", dt.datetime(2026, 5, 10, 9), 123, dt.datetime(2026, 5, 14, 9), "declined", 169, None, None))
-T.append(tk("Ban appeal: wrongly flagged", "I believe my account was flagged by mistake. I only submitted real runs.", "ban appeal", dt.datetime(2026, 9, 20, 9), None, None, None, 170, None, None))
-ins("TICKET", ["subject","body","ticket_type","resolution","created_at","closed_at","raised_by","handler_id","game_id","run_id"], T)
+for i in range(140):
+    typ = random.choices(["bug", "run report", "other"], [3, 5, 2])[0]
+    c = d0 + dt.timedelta(days=random.randint(0, 235), hours=random.randint(0, 20))
+    st = random.choices(["open", "progress", "closed"], [3, 2, 5])[0]
+    handler = random.choice(ADMIN_IDS) if st != "open" else None
+    closed = c + dt.timedelta(days=random.randint(1, 6)) if st == "closed" else None
+    res = random.choice(["accepted", "declined"]) if st == "closed" else None
+    if typ == "bug": s, b = random.choice(BUGS); T.append(tk(s, b, typ, c, random.choice(POOL), handler, closed, res))
+    elif typ == "other": s, b = random.choice(OTHER); T.append(tk(s, b, typ, c, random.choice(POOL), handler, closed, res, game=gid_of[random.choice(GAMES)[0]]))
+    else: s, b = random.choice(RUNR); T.append(tk(s, b, typ, c, random.choice(POOL), handler, closed, res, run=random.choice(allv)))
+for j, bu in enumerate(sorted(BANNED)):
+    c = dt.datetime(2026, 5, 10, 9) + dt.timedelta(days=j * 9)
+    if j % 3 == 0: T.append(tk("Ban appeal: sorry for the spam", "I was banned for posting links. I have read the rules and will not repeat this.", "ban appeal", c, bu, random.choice(ADMIN_IDS), c + dt.timedelta(days=4), "declined"))
+    elif j % 3 == 1: T.append(tk("Ban appeal: wrongly flagged", "I believe my account was flagged by mistake.", "ban appeal", c, bu))
+    else: T.append(tk("Ban appeal: second chance", "Requesting a review of my ban.", "ban appeal", c, bu, random.choice(ADMIN_IDS)))
+ins("TICKET", ["subject","body","ticket_type","resolution","created_at","closed_at","raised_by","handler_id","game_id","run_id"], T, 400)
 
 with open(OUT, "w", encoding="utf-8", newline="\n") as f:
     f.write("\n".join(L) + "\n")
-print("runs:", len(run_rows), "users:", len(users), "tickets:", len(T))
+print("users:", len(users), "games:", len(GAMES), "runs:", len(run_rows), "tickets:", len(T), "threads:", len(th_rows), "replies:", len(rp_rows))

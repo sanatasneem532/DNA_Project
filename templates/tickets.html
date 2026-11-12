@@ -1,24 +1,27 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
 {% block title %}Tickets{% endblock %}
 {% block content %}
-<h1>Support tickets</h1>
-<form class="filters" method="get">
-  <select name="status" data-autosubmit>
+<div class="page-head"><h1>Tickets</h1><p>Bug reports, run reports and ban appeals.</p></div>
+<form class="toolbar" method="get">
+  <select name="status" data-autosubmit aria-label="Status">
     <option value="">Any status</option>
-    {% for s in ['open','in progress','closed'] %}<option value="{{ s }}" {{ 'selected' if s == status }}>{{ s }}</option>{% endfor %}
+    {% for s in ['open','in progress','closed'] %}<option value="{{ s }}" {{ 'selected' if s == status }}>{{ s|capitalize }}</option>{% endfor %}
   </select>
-  <select name="type" data-autosubmit>
+  <select name="type" data-autosubmit aria-label="Type">
     <option value="">Any type</option>
-    {% for s in ['bug','run report','ban appeal','other'] %}<option value="{{ s }}" {{ 'selected' if s == ttype }}>{{ s }}</option>{% endfor %}
+    {% for s in ['bug','run report','ban appeal','other'] %}<option value="{{ s }}" {{ 'selected' if s == ttype }}>{{ s|capitalize }}</option>{% endfor %}
   </select>
+  <noscript><button class="btn">Filter</button></noscript>
+  {% if status or ttype %}<a class="linkbtn" href="{{ url_for('tickets') }}">Clear</a>{% endif %}
 </form>
 {% if rows %}
-<div class="scroll"><table>
+<div class="table-wrap"><table>
   <thead><tr><th>Subject</th><th>Type</th><th>Status</th><th>Raised by</th><th>Handler</th><th>Created</th></tr></thead><tbody>
   {% for t in rows %}
-    <tr><td>{{ t.subject }}</td><td>{{ t.ticket_type }}</td>
-        <td><span class="badge">{{ t.status }}{% if t.resolution %} · {{ t.resolution }}{% endif %}</span></td>
-        <td>{{ t.raised_by }}</td><td>{{ t.handler or '—' }}</td><td class="muted">{{ t.created_at|dt }}</td></tr>
+    <tr><td>{{ t.subject }}</td><td class="muted">{{ t.ticket_type }}</td>
+        <td>{{ ui.status(t.status) }}{% if t.resolution %}<span class="cell-sub">{{ t.resolution }}</span>{% endif %}</td>
+        <td>{{ t.raised_by }}</td><td>{{ t.handler or '—' }}</td><td class="muted nowrap">{{ t.created_at|d }}</td></tr>
   {% endfor %}</tbody></table></div>
-{% else %}<p class="empty">No tickets match. Clear a filter to see more.</p>{% endif %}
+{% else %}{{ ui.empty('No tickets match', 'Clear a filter to see more.') }}{% endif %}
 {% endblock %}
