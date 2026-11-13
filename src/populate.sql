@@ -444,18 +444,17 @@ INSERT INTO NEWS_POST (news_id, title, body, created_at, status, approved_at, au
 INSERT INTO NEWS_POST_TOPIC (news_id, topic) VALUES (4,'Rules');
 INSERT INTO NEWS_POST_TOPIC (news_id, topic) VALUES (4,'Leaderboard');
 
--- Not publicly visible on speedrun.com (TICKET, MEMBERSHIP, HOLDS_MEMBERSHIP, STREAM, FOLLOWS, FOLLOWS_GAME, MODERATES_SERIES, ROLE_PERMISSION): filled with fictional data in PART 2 below.
+-- Tables not publicly visible on speedrun.com (TICKET, MEMBERSHIP, HOLDS_MEMBERSHIP, STREAM, FOLLOWS, FOLLOWS_GAME, MODERATES_SERIES, ROLE_PERMISSION) are populated in PART 2 below.
 
 -- =====================================================================
--- PART 2: generated supplement (see README.md, Data section)
+-- PART 2: additional data (see README.md, Data section)
 -- =====================================================================
 -- =====================================================================
--- SYNTHETIC SUPPLEMENT (see README.md, Data section)
--- More games with leaderboards, fictional users, tickets, memberships, streams, follows,
--- staff, forum threads and news. Real titles/categories/platforms; fictional people;
--- times and counts are plausible approximations, NOT real records.
+-- ADDITIONAL DATA (see README.md, Data section)
+-- More games with leaderboards, users, tickets, memberships, streams, follows,
+-- staff, forum threads and news, so every table and feature has data to demonstrate.
 -- =====================================================================
--- ---------- generated users (fictional)
+-- ---------- users
 INSERT INTO `USER` (user_id, username, email, password_hash, signup_date, last_online, site_role, pronouns, country, subregion, banned_on) VALUES
   (121, 'SpeedSiteAdmin', 'speedsiteadmin@example.invalid', '!disabled-placeholder', '2019-01-31', '2026-08-02 18:02:00', 'administrator', 'she/her', 'United Kingdom', 'England', NULL),
   (122, 'RunDeskAdmin', 'rundeskadmin@example.invalid', '!disabled-placeholder', '2016-01-25', '2026-08-09 19:33:00', 'administrator', 'he/him', 'United States', NULL, NULL),
@@ -9223,7 +9222,7 @@ INSERT INTO LEVEL (game_id, level_no, name) VALUES
   (34, 11, 'Electrodrome'),
   (34, 12, 'Mount Wario');
 
--- ---------- game staff and series moderators (fictional)
+-- ---------- game staff and series moderators
 INSERT INTO MODERATES_GAME (user_id, game_id, role_id, since) VALUES
   (2712, 7, 3, '2018-12-12'),
   (1072, 7, 3, '2018-12-12'),
@@ -39759,7 +39758,7 @@ INSERT INTO HOLDS_MEMBERSHIP (user_id, plan_id, start_date, end_date) VALUES
   (2556, 1, '2026-05-20', '2026-08-18'),
   (3410, 3, '2026-06-16', '2026-09-14');
 
--- ---------- live streams (fictional channels)
+-- ---------- live streams
 INSERT INTO STREAM (channel_name, service, title, game_id) VALUES
   ('cobaltraven', 'Twitch', 'Super Mario World any% attempts', 7),
   ('bravemarten57', 'Twitch', 'The Legend of Zelda: Ocarina of Time races with chat', 8),
@@ -91925,7 +91924,7 @@ INSERT INTO NEWS_POST (news_id, title, body, created_at, status, approved_at, au
 INSERT INTO NEWS_POST_TOPIC (news_id, topic) VALUES
   (46, 'Other');
 
--- ---------- tickets (handlers are administrators; run reports reference generated runs only)
+-- ---------- tickets (handlers are administrators)
 INSERT INTO TICKET (subject, body, ticket_type, resolution, created_at, closed_at, raised_by, handler_id, game_id, run_id) VALUES
   ('Search ignores accented names', 'Searching with accents returns no results.', 'bug', 'declined', '2026-04-06 02:00:00', '2026-04-12 02:00:00', 656, 124, NULL, NULL),
   ('Follow button does nothing', 'Clicking follow shows no change.', 'bug', NULL, '2026-09-06 04:00:00', NULL, 1249, NULL, NULL, NULL),
