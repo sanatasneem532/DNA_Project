@@ -50,8 +50,8 @@ Reads = R, writes = W. Click **Act as a user** (top right) before any write.
 11. **Moderation queue (R)** – `/moderation` (and `?all=1`). Runs awaiting a decision in games the user moderates.
 12. **Submit a run (W – CREATE)** – "Submit a run" button or `/submit?game=<abbr>`. One transaction inserts into RUN, PLAYED_BY, RUN_TIME, and optionally RUN_VIDEO_LINK and LEVEL_RUN. Trigger rules (future date, platform, region, emulator, banned user) show as error messages.
 13. **Verify / reject a run (W – UPDATE)** – `/moderation` or run page. Sets `examiner_id`, `decided_on`, `reject_reason`. A non-moderator is rejected by the database trigger.
-14. **Edit a reply (W – UPDATE)** – thread page, "Edit" on your own reply.
-15. **Post a reply (W – CREATE)** – thread page, reply box. Locked threads and banned users are blocked by triggers.
+14. **Post a reply (W – CREATE)** – thread page, reply box. Locked threads and banned users are blocked by triggers.
+15. **Edit a reply (W – UPDATE)** – thread page, "Edit" on your own reply.
 16. **Delete a reply (W – DELETE)** – thread page, "Delete" on your own reply.
 17. **Withdraw a pending run (W – DELETE)** – run page of your own run while status is `new`.
 18. **Follow / unfollow a game or a player (W – CREATE / DELETE)** – game page and profile page buttons. Following yourself is blocked by a trigger.
