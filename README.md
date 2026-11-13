@@ -8,7 +8,7 @@ Web app modelled on **speedrun.com** (game leaderboards, run submission and veri
 - **Frontend:** Jinja server-side templates, hand-written CSS design system (dark/light theme), plain JavaScript
 
 ## Design Changes
-Phase 2 team: `<number>`   Phase 3 team: `<number>`   <!-- TODO: fill in before submitting -->
+Phase 2 team: `63`   Phase 3 team: `54`  
 
 - None to the table/column structure of the Phase 3 schema; `schema.sql` is used as received.
 - `populate.sql` is in two parts: (1) data collected from speedrun.com (6 games, 104 runs, 120 users), (2) a generated supplement (40 more real-titled games, ~6,950 runs, 4,880 fictional users, staff, tickets, memberships, streams, follows, forum/news activity; 5,000 users in total) so every feature has data to demonstrate. See the Data section below.
@@ -86,8 +86,8 @@ All data comes from public speedrun.com pages, collected 11 Nov 2026. Fandom wik
 - News bodies are short summaries (not copies). News approver = `Pac` (site founder/staff, set as administrator).
 - Thread codes are `x1, x2, ...` because the schema requires the `x<number>` format.
 
-### Not populated (not publicly visible)
-Tickets, memberships, streams, follows, game follows, series moderators, role permissions.
+### Not publicly visible on speedrun.com (filled synthetically)
+Tickets, memberships, streams, follows, game follows, series moderators and role permissions are not shown publicly, so Part 2 of `populate.sql` fills them with plausible fictional data. Every table in `schema.sql` has rows.
 
 ### Skipped
 Users whose names contain "." (e.g. `bobo.`, `Phoenix.`) because the schema's username CHECK forbids it.

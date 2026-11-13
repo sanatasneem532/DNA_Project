@@ -444,7 +444,7 @@ INSERT INTO NEWS_POST (news_id, title, body, created_at, status, approved_at, au
 INSERT INTO NEWS_POST_TOPIC (news_id, topic) VALUES (4,'Rules');
 INSERT INTO NEWS_POST_TOPIC (news_id, topic) VALUES (4,'Leaderboard');
 
--- Not populated (not publicly visible on speedrun.com): TICKET, MEMBERSHIP, HOLDS_MEMBERSHIP, STREAM, FOLLOWS, FOLLOWS_GAME, MODERATES_SERIES, ROLE_PERMISSION.
+-- Not publicly visible on speedrun.com (TICKET, MEMBERSHIP, HOLDS_MEMBERSHIP, STREAM, FOLLOWS, FOLLOWS_GAME, MODERATES_SERIES, ROLE_PERMISSION): filled with fictional data in PART 2 below.
 
 -- =====================================================================
 -- PART 2: generated supplement (see README.md, Data section)
