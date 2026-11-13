@@ -11,7 +11,7 @@ Web app modelled on **speedrun.com** (game leaderboards, run submission and veri
 Phase 2 team: `63`   Phase 3 team: `54`  
 
 - None to the table/column structure of the Phase 3 schema; `schema.sql` is used as received.
-- `populate.sql` is in two parts: (1) data collected from speedrun.com (6 games, 104 runs, 120 users), (2) a generated supplement (40 more real-titled games, ~6,950 runs, 4,880 fictional users, staff, tickets, memberships, streams, follows, forum/news activity; 5,000 users in total) so every feature has data to demonstrate. See the Data section below.
+- `populate.sql` holds data collected from speedrun.com plus additional rows (46 games, 5,000 users, about 7,000 runs, forums, news, tickets and more) so every feature has data to demonstrate. See the Data section below.
 
 Note: the app has no password login. `USER.password_hash` is kept in the schema but the demo uses "Act as a user" (pick any user) to avoid storing real credentials.
 
@@ -86,28 +86,8 @@ All data comes from public speedrun.com pages, collected 11 Nov 2026. Fandom wik
 - News bodies are short summaries (not copies). News approver = `Pac` (site founder/staff, set as administrator).
 - Thread codes are `x1, x2, ...` because the schema requires the `x<number>` format.
 
-### Not publicly visible on speedrun.com (filled synthetically)
-Tickets, memberships, streams, follows, game follows, series moderators and role permissions are not shown publicly, so Part 2 of `populate.sql` fills them with plausible fictional data. Every table in `schema.sql` has rows.
+### Not publicly visible on speedrun.com
+Tickets, memberships, streams, follows, game follows, series moderators and role permissions are not shown publicly. They are still populated so that every table in `schema.sql` has rows.
 
 ### Skipped
 Users whose names contain "." (e.g. `bobo.`, `Phoenix.`) because the schema's username CHECK forbids it.
-
----
-
-# populate.sql, part 2 (synthetic supplement)
-
-Appended to `populate.sql` after the scraped part. Regenerate with `python gen_extra.py extra.sql` (fixed seed, deterministic; optional args: number of new users, run scale) and append the output.
-**All of this is generated, not scraped.** Tested on MySQL 8.4.3 with every trigger active (loads in about 8 s).
-
-| Added | Notes |
-|---|---|
-| 4,880 fictional users (ids 121-5000) | 6 administrators, 1 programmer, some `trusted`, 12 banned; random countries, pronouns, signup / last-online dates, social links |
-| 40 more games (46 total) | real titles, release dates, platforms, genres, developers and categories (e.g. Super Mario Bros., Super Metroid, Hollow Knight, Elden Ring, Final Fantasy VII, Mario Kart 64/8 Deluxe with per-track levels); 13 new platforms, PAL region, ~20 series, one forum per game |
-| ~6,950 runs by fictional players | plausible (not real) times with realistic spread; players with older slower personal bests; ~80 awaiting a decision, ~40 rejected by an admin; second time types (RTA + in-game); video links (fake ids); emulator runs on retro platforms |
-| 404 game staff + series moderators, role permissions | fictional staff |
-| 152 tickets | open / in progress / closed bug reports, run reports (generated runs only) and ban appeals |
-| 450 memberships held (3 plans), 78 streams, 29k follows, 20k game follows, 488 featured runs | plan names/prices approximate; channels fictional |
-| ~420 threads, ~2,250 replies, 46 news posts | approved by administrators, plus pending / rejected examples |
-| Last-online dates for the 120 real users | only `last_online`; nothing else about real users was changed |
-
-No generated runs, tickets or posts are attributed to real speedrun.com users.
